@@ -1,62 +1,53 @@
 # Cashmemo Web (विशाल नर्सरी कैश मेमो)
 
-> A standalone, 100% offline-first billing, invoicing, and customer ledger web application ported from the native Android Cashmemo application ([`Vishal_Nurshri`](https://github.com/decentyogi/Vishal_Nurshri)).
+> A persistent, server-side local storage billing and customer ledger web application ported from the native Android Cashmemo application ([`Vishal_Nurshri`](https://github.com/decentyogi/Vishal_Nurshri)).
 
 ---
 
-## 🌺 Overview
+## 🌺 Architecture & Enhancements
 
-**Cashmemo Web** is a zero-backend, browser-native point-of-sale and invoicing solution crafted for nursery businesses, retail shops, and local enterprises. It faithfully preserves the iconic cultural heritage layout of the original Android app—including royal maroon ink (`#8B1527`), ornamental floral motifs, split Rupees (`रू०`) and Paise (`पै०`) ledger columns, and authentic digital signing—while providing a modern, high-productivity web workspace.
+### 1. 📂 Persistent Server-Side Local Storage (Incognito & Portability Fix)
+- **Decoupled from Browser Client Storage:** Bills and customer profiles no longer vanish in Private/Incognito browsing mode or across browser cache clears.
+- **Local JSON Storage:** All data is strictly persisted on disk inside `./data/`:
+  - `./data/bills.json` — Cash memos, line items, and audit history.
+  - `./data/settings.json` — Store metadata, UPI settings, and invoice sequencing.
+  - `./data/customers.json` — Customer profiles and outstanding due ledgers.
+  - `./data/rates.json` — Custom plant and material rate catalog.
+- **100% Portable:** All directory paths are resolved dynamically using `os.path.dirname(os.path.abspath(__file__))`, enabling painless copying between PCs, flash drives, and operating systems.
+- **Auto-Save Protection:** When creating a new memo or clicking Print/Save, the system immediately writes to `./data/bills.json`.
 
----
+### 2. 🌱 Clean Initial State (Zero Dummy Data)
+- Fresh installations start with 100% clean tables.
+- Hardcoded dummy profiles (Anita Devi, random phone numbers) and default plant rows have been completely removed.
+- An explicit **"+ Add Row"** and **"+ Add Plant"** button allows clean, user-driven data entry.
 
-## ✨ Core Features Ported from Android
+### 3. 🎯 Customer Input Alignment
+- Customer Name and Address input fields and their placeholder text are centered (`text-align: center;`) for clean aesthetic ledger entry.
 
-### 1. 🏢 Business Header & Invoice Metadata
-- **Bilingual Branding:** Prominent Hindi typography (`विशाल नर्सरी`) with optional English title (`Vishal Nursery`) and ornamental floral crests.
-- **Configurable Header:** Shop name, phone, address (Sasaram, Rohtas, Bihar), GSTIN/Tax ID, tagline, and customizable UPI ID for payments.
-- **Invoice Tracking:** Auto-incrementing invoice number, date picker (DD/MM/YYYY), and optional due date.
+### 4. 🖨️ High-Resolution Vector UPI QR Code for Paper Printing
+- **Mathematical Vector SVG:** Instead of fuzzy low-res raster bitmaps, UPI payment QR codes are generated dynamically as crisp SVG vector modules (`shape-rendering: crispEdges`).
+- **Print Optimization:** Supports 300+ DPI razor-sharp output on A4 paper and thermal receipt printers with zero blur or pixelation.
+- **Strict UPI URI Format:**
+  ```text
+  upi://pay?pa=dangerousop@ybl&pn=Vishal%20Nursery&am={AMOUNT}&cu=INR&tn=Plant%20Purchase
+  ```
 
-### 2. 🧾 Dynamic Itemized Billing Table
-- **Interactive Line Items:** Dynamically add, clone, decrement/increment quantities, or delete line items.
-- **Comprehensive Columns:** S.No, Item Description/Plant Name, optional HSN/SAC code, Quantity, Unit Price/Rate, Item Discount (`₹` or `%`), and Row Total.
-- **Instant Live Recalculation:** Subtotal, row amounts, overall discounts, and balances update instantaneously on every keystroke without page reloads.
+### 5. 🌿 Streamlined Billing Items Table
+- **Removed Distractions:** Completely removed the unused HSN/SAC and Item Discount columns.
+- **Expanded Botanical Description:** The Item / Plant Description column is expanded to take up ~60% of the table width, comfortably accommodating long botanical, vernacular, and variety names without wrapping.
+- **Streamlined Columns:** `[ # | Item / Plant Description | Qty | Rate | Amount | Action ]`.
 
-### 3. 🧮 Calculations & Indian Ledger Engine
-- **Split Tax Breakdown:** Supports intra-state CGST/SGST (50/50 split), inter-state IGST, or standard VAT/Sales tax percentages.
-- **Customer Dues & Ledger:** Carries over previous outstanding balances into the total payable bill amount.
-- **Partial Payment Settlement:** Records amount received now, remaining balance due, change to return, and next-day promise notes (`Next Day (कल देगा)`).
-- **Indian Numbering Converter:** Automatically translates grand totals into official Indian currency words (`Crore`, `Lakh`, `Thousand`, `Hundred`, `Rupees`, `Paise Only`).
+### 6. 💱 "Carry Forward" Settlement
+- The settlement balance promise box is strictly labeled in English as **"Carry Forward"** without confusing translation text.
 
-### 4. 👥 Customer Directory & Live Autocomplete
-- **Intelligent Autocomplete:** Typing customer name or mobile number in the bill editor instantly searches saved customer profiles.
-- **Automatic Dues Fetch:** Selecting a customer automatically pre-fills their phone, address, and pulls their current outstanding dues into the invoice.
-- **Customer Management Drawer:** Complete ledger tracking total purchases, total collections, outstanding balances, and direct payment settlements.
-
-### 5. 🌿 Plant / Item Rate Catalog
-- **Searchable Catalog:** Pre-seeded with nursery plants (Rose/गुलाब, Marigold/गेंदा, Bougainvillea, Mango/आम कलम, Pots, Vermicompost).
-- **Retail & Wholesale Toggle:** Switch between Retail (खुदरा मूल्य) and Wholesale (थोक मूल्य) pricing with 1-click addition to the active bill.
-- **Custom Additions:** Add, edit, or delete items and prices directly inside the browser.
-
-### 6. 📱 Dynamic Scannable UPI QR Code
-- Built-in, zero-dependency offline QR engine that creates standard ISO UPI payment codes (`upi://pay?pa=...&pn=...&am=...&cu=INR&tn=...`).
-- Customers can scan the QR directly from the screen or printed paper slip using Google Pay, PhonePe, Paytm, BHIM, or Amazon Pay.
-
-### 7. 🖨️ Pixel-Perfect Print & PDF Output
-- **Authentic Maroon Slip:** The exact heritage paper slip with double borders, signature badges, terms (`भूल-चूक लेनी-देनी`), and floral emblems.
-- **Modern GST Invoice:** Alternative corporate layout for formal B2B GST tax invoices.
-- **CSS `@media print` Engine:** Strips all editor navigation, buttons, and backgrounds for clean A4 printing or browser **Save as PDF** without clipping.
-
-### 8. 🔄 100% Offline Persistence & Backup
-- **Zero Backend:** Runs completely offline without any internet connection.
-- **Browser Storage:** All memos, customer ledgers, business profiles, and catalog rates persist in `localStorage`.
-- **One-Click JSON Backup:** Export your entire database to a `.json` backup file or restore/import an existing backup in one click.
+### 7. ⚙️ Default Configurations
+- **GSTIN:** Set strictly to `"NaN"`.
+- **Terms & Notes:** Configured to:
+  `"Thanks For Visiting Vishal Nurshri !! Visit Again... Thanks"`
 
 ---
 
 ## ⌨️ Keyboard Shortcuts
-
-Speed up billing with integrated global keyboard hotkeys:
 
 | Shortcut | Action |
 |---|---|
@@ -70,49 +61,43 @@ Speed up billing with integrated global keyboard hotkeys:
 
 ---
 
-## 🚀 How to Run Locally
+## 🚀 How to Run
 
-Because Cashmemo Web has zero external backend dependencies, you can run it in multiple ways:
-
-### Method 1: Double-Click (Easiest)
-Simply double-click `index.html` to open the app directly inside Chrome, Edge, Firefox, or Safari.
-
-### Method 2: Python HTTP Server (Recommended)
+### Method 1: Python Flask Server (Recommended - Incognito Safe)
 ```bash
 # Navigate to project folder
 cd Cashmemo_Web
 
-# Start Python 3 web server
-python -m http.server 8080
+# Run the Python backend
+python app.py
 ```
-Then visit: `http://localhost:8080`
+Visit in any browser (standard or Incognito): **`http://localhost:8080`**
 
-### Method 3: Node / NPX Serve
-```bash
-npx serve .
-```
+### Method 2: Standalone Local Fallback
+Double-click `index.html` to open directly in any browser (falls back gracefully to browser local storage if Python server is not running).
 
 ---
 
-## 📁 Project Architecture
+## 📁 Project Structure
 
 ```
 Cashmemo_Web/
-├── index.html           # Main SPA layout, editor workspace & modals
+├── app.py               # Flask RESTful API server & local JSON persistence
+├── data/                # Server-side persistent storage directory
+│   ├── bills.json       # All cash memo records
+│   ├── settings.json    # Store profile, GSTIN="NaN", terms
+│   ├── customers.json   # Customer balance directory
+│   └── rates.json       # Plant rate catalog
+├── index.html           # Streamlined single-page billing UI
 ├── css/
-│   └── styles.css       # Tailwind base styles, maroon palette, print engine
+│   └── styles.css       # Tailwind base, centered alignment & vector print CSS
 ├── js/
-│   ├── app.js           # Core reactive application controller & state
-│   ├── db.js            # Offline-first storage layer (localStorage/IndexedDB)
+│   ├── app.js           # Reactive billing controller, auto-save & vector QR
+│   ├── db.js            # Dual-mode backend API & local storage layer
 │   ├── numberToWords.js # Indian numbering currency converter (Crore/Lakh/Rupees)
-│   ├── sampleData.js    # Pre-seeded Vishal Nursery profile & plant rate catalog
-│   ├── shortcuts.js     # Global keyboard shortcuts listener
-│   └── qrcode.min.js    # Standalone offline UPI QR code generator
-├── .gitignore           # Git ignore rules for clean repository
+│   ├── sampleData.js    # Clean default profile & settings
+│   ├── shortcuts.js     # Global hotkeys (Ctrl+Enter, Alt+N, Alt+S, etc.)
+│   └── qrcode.min.js    # Offline QR module matrix generator
+├── .gitignore           # Clean git ignore configuration
 └── README.md            # Comprehensive project documentation
 ```
-
----
-
-## 📜 License
-Developed as an open-source, offline-first billing system. All rights reserved by **Vishal Nursery (विशाल नर्सरी)**.

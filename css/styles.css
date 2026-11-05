@@ -31,6 +31,27 @@ body {
   min-height: 100vh;
 }
 
+/* ========================================================================= */
+/* CUSTOMER DETAILS CENTER ALIGNMENT SPECIFICATION                            */
+/* ========================================================================= */
+#editorCustomerName,
+#editorCustomerAddress,
+#customer-name,
+#customer-address,
+.customer-input-name,
+.customer-input-address {
+  text-align: center !important;
+}
+
+#editorCustomerName::placeholder,
+#editorCustomerAddress::placeholder,
+#customer-name::placeholder,
+#customer-address::placeholder,
+.customer-input-name::placeholder,
+.customer-input-address::placeholder {
+  text-align: center !important;
+}
+
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
@@ -87,7 +108,7 @@ body {
   background-color: var(--color-maroon);
   color: #FFFFFF;
   font-weight: 700;
-  padding: 4px 3px;
+  padding: 5px 4px;
   border-right: 1px solid #FFFFFF;
   text-align: center;
 }
@@ -98,7 +119,7 @@ body {
 .slip-table td {
   border-top: 0.8px solid rgba(139, 21, 39, 0.35);
   border-right: 0.8px solid rgba(139, 21, 39, 0.35);
-  padding: 4px 4px;
+  padding: 4px 5px;
   color: var(--color-maroon);
   vertical-align: middle;
 }
@@ -126,39 +147,6 @@ body {
   padding: 6px 14px;
   display: inline-block;
   text-align: center;
-}
-
-/* Modern GST Layout */
-.gst-invoice {
-  background-color: #FFFFFF;
-  color: #1F2937;
-  font-family: var(--font-sans);
-  border: 1px solid #E5E7EB;
-  border-radius: 6px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  padding: 24px;
-}
-
-.gst-invoice-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 11px;
-  border: 1px solid #E5E7EB;
-}
-
-.gst-invoice-table th {
-  background-color: #F9FAFB;
-  color: #374151;
-  font-weight: 700;
-  padding: 8px 6px;
-  border: 1px solid #E5E7EB;
-  text-align: left;
-}
-
-.gst-invoice-table td {
-  border: 1px solid #E5E7EB;
-  padding: 6px;
-  color: #1F2937;
 }
 
 /* Modals & Drawers Transition */
@@ -222,9 +210,9 @@ body {
   }
 }
 
-/* ------------------------------------------------------------- */
-/* PIXEL-PERFECT PRINT ENGINE FOR A4 AND THERMAL RECEIPT PRINTERS */
-/* ------------------------------------------------------------- */
+/* ========================================================================= */
+/* PIXEL-PERFECT PRINT ENGINE & HIGH-RESOLUTION VECTOR UPI QR CODE            */
+/* ========================================================================= */
 @media print {
   @page {
     size: A4 portrait;
@@ -254,6 +242,7 @@ body {
   #settingsModal,
   #backupModal,
   #shortcutsModal,
+  #paymentSettleModal,
   #toastContainer,
   .no-print,
   button,
@@ -302,22 +291,21 @@ body {
     color: #8B1527 !important;
   }
 
-  /* Avoid cutting table rows across pages */
+  /* High-Resolution Vector UPI QR Code for Crisp Paper Printing */
+  .upi-qr-image,
+  .upi-qr-container svg,
+  #slipQrBox svg,
+  .upi-qr-svg {
+    width: 150px !important;
+    height: 150px !important;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   tr {
     page-break-inside: avoid !important;
-  }
-}
-
-/* Thermal Printer Specific Overrides */
-body.thermal-mode {
-  width: 80mm;
-}
-@media print {
-  body.thermal-mode {
-    width: 80mm !important;
-  }
-  body.thermal-mode @page {
-    size: 80mm auto;
-    margin: 3mm;
   }
 }

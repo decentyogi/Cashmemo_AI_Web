@@ -24,7 +24,7 @@
             <h1 class="text-lg font-black tracking-wide leading-tight">विशाल नर्सरी</h1>
             <span class="text-xs bg-white/20 font-semibold px-2 py-0.5 rounded text-white/90">Cashmemo Web</span>
           </div>
-          <div class="text-[11px] text-white/80 font-medium">Standalone Offline-First Billing & Ledger System</div>
+          <div class="text-[11px] text-white/80 font-medium">Persistent Local Storage & High-Resolution Vector Billing</div>
         </div>
       </div>
 
@@ -115,7 +115,7 @@
         </div>
       </div>
 
-      <!-- 2. Customer Profile Card with Live Autocomplete -->
+      <!-- 2. Customer Profile Card with Centered Input Alignment -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 relative">
         <div class="flex items-center justify-between border-b border-gray-100 pb-2 mb-3">
           <div class="flex items-center space-x-2">
@@ -126,28 +126,28 @@
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-          <!-- Customer Name with Autocomplete dropdown -->
+          <!-- Customer Name with Centered Text Alignment -->
           <div class="relative">
-            <label class="block text-[11px] font-bold text-gray-600 mb-1">Customer Name (ग्राहक का नाम)</label>
-            <input type="text" id="editorCustomerName" autocomplete="off" class="w-full text-xs font-semibold border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#8B1527]" placeholder="e.g. राजेश कुमार सिंह" />
+            <label class="block text-[11px] font-bold text-gray-600 mb-1 text-center">Customer Name (ग्राहक का नाम)</label>
+            <input type="text" id="editorCustomerName" autocomplete="off" class="customer-input-name w-full text-xs font-semibold border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#8B1527] text-center" placeholder="Enter Customer Name" />
             <div id="customerSuggestions" class="absolute left-0 right-0 top-full bg-white shadow-xl border border-gray-200 rounded-lg mt-1 z-30 hidden max-h-56 overflow-y-auto"></div>
           </div>
 
           <!-- Mobile Number -->
           <div>
-            <label class="block text-[11px] font-bold text-gray-600 mb-1">Mobile Number (मोबाइल)</label>
-            <input type="text" id="editorCustomerMobile" class="w-full text-xs font-mono border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#8B1527]" placeholder="7631873743" />
+            <label class="block text-[11px] font-bold text-gray-600 mb-1 text-center">Mobile Number (मोबाइल)</label>
+            <input type="text" id="editorCustomerMobile" class="w-full text-xs font-mono border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#8B1527] text-center" placeholder="Mobile Number" />
           </div>
         </div>
 
-        <!-- Address -->
+        <!-- Address with Centered Text Alignment -->
         <div>
-          <label class="block text-[11px] font-bold text-gray-600 mb-1">Customer Address (ग्राहक का पता)</label>
-          <input type="text" id="editorCustomerAddress" class="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#8B1527]" placeholder="ग्राम-कोटा, तकिया, सासाराम" />
+          <label class="block text-[11px] font-bold text-gray-600 mb-1 text-center">Customer Address (ग्राहक का पता)</label>
+          <input type="text" id="editorCustomerAddress" class="customer-input-address w-full text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#8B1527] text-center" placeholder="Enter Customer Address" />
         </div>
       </div>
 
-      <!-- 3. Dynamic Line Items Table Card -->
+      <!-- 3. Streamlined Billing Items Table (No HSN, No Disc, Expanded Description) -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
         <div class="flex items-center justify-between border-b border-gray-100 pb-2 mb-3">
           <div class="flex items-center space-x-2">
@@ -157,18 +157,16 @@
           <span class="text-[11px] text-gray-400">Alt+N to add row</span>
         </div>
 
-        <!-- Line items table -->
+        <!-- Streamlined Table -->
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs border-collapse">
             <thead>
               <tr class="bg-gray-50 text-gray-600 font-bold border-b border-gray-200">
-                <th class="p-2 w-8 text-center">#</th>
-                <th class="p-2">Item Description / Plant</th>
-                <th class="p-2 w-16 text-center">HSN</th>
+                <th class="p-2 w-10 text-center">#</th>
+                <th class="p-2 w-7/12">Item / Plant Description (पौधा व सामग्री का नाम)</th>
                 <th class="p-2 w-24 text-center">Qty</th>
-                <th class="p-2 w-20 text-right">Price (₹)</th>
-                <th class="p-2 w-24 text-right">Disc</th>
-                <th class="p-2 w-24 text-right">Amount (₹)</th>
+                <th class="p-2 w-28 text-right">Rate (₹)</th>
+                <th class="p-2 w-28 text-right">Amount (₹)</th>
                 <th class="p-2 w-16 text-center">Action</th>
               </tr>
             </thead>
@@ -178,18 +176,18 @@
           </table>
         </div>
 
-        <!-- Add Row Button & Quick Rate Picker -->
+        <!-- Add Row Button -->
         <div class="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
-          <button type="button" id="btnAddRow" class="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md text-xs font-bold transition-colors">
+          <button type="button" id="btnAddRow" class="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-red-800 hover:bg-red-900 text-white rounded-md text-xs font-bold transition-colors shadow-sm">
             <span>+</span>
-            <span>Add Item Row (Alt+N)</span>
+            <span>Add Row (Alt+N)</span>
           </button>
 
-          <span class="text-[11px] text-gray-400 italic">Quick auto-lookup active on typing</span>
+          <span class="text-[11px] text-gray-400 italic">Full width plant & botanical description enabled</span>
         </div>
       </div>
 
-      <!-- 4. Billing Summaries & Settlement Card -->
+      <!-- 4. Billing Summaries & Settlement Card (Carry Forward wording) -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
         <div class="flex items-center justify-between border-b border-gray-100 pb-2 mb-3">
           <div class="flex items-center space-x-2">
@@ -229,7 +227,7 @@
               <div>
                 <label class="block text-[11px] font-bold text-gray-600 mb-1">Payment Method</label>
                 <select id="editorPaymentMethod" class="w-full text-xs border border-gray-300 rounded px-2 py-1 bg-white font-medium">
-                  <option value="Cash">Cash (नगद)</option>
+                  <option value="Cash">Cash</option>
                   <option value="UPI">UPI / Online</option>
                   <option value="Card">Debit / Credit Card</option>
                   <option value="Bank Transfer">Bank Transfer (NEFT/IMPS)</option>
@@ -238,14 +236,15 @@
               </div>
 
               <div>
-                <label class="block text-[11px] font-bold text-gray-600 mb-1">Amount Paid (जमा राशि)</label>
+                <label class="block text-[11px] font-bold text-gray-600 mb-1">Amount Paid</label>
                 <input type="number" id="editorPaidAmount" min="0" step="any" class="w-full text-xs font-mono font-bold text-emerald-800 border border-gray-300 rounded px-2 py-1 text-right focus:outline-none" value="0" />
               </div>
             </div>
 
+            <!-- Strictly English "Carry Forward" Label -->
             <div>
-              <label class="block text-[11px] font-bold text-gray-600 mb-1">Balance Due Promise / Note</label>
-              <input type="text" id="editorDueNote" class="w-full text-xs border border-gray-300 rounded px-2 py-1" value="Next Day (कल देगा)" placeholder="e.g. Next Monday, Will pay in cash" />
+              <label class="block text-[11px] font-bold text-gray-700 mb-1">Carry Forward</label>
+              <input type="text" id="editorDueNote" class="w-full text-xs border border-gray-300 rounded px-2 py-1 font-medium text-gray-800" value="Carry Forward" placeholder="Carry Forward" />
             </div>
           </div>
 
@@ -310,7 +309,7 @@
       </div>
 
       <!-- Scrollable Container for Preview -->
-      <div class="flex-1 overflow-y-auto max-h-[800px] rounded-xl">
+      <div class="flex-1 overflow-y-auto max-h-[820px] rounded-xl">
         <!-- Exact Printable Area -->
         <div id="billPrintArea" class="w-full">
           <div id="slipPreviewContainer">
@@ -332,7 +331,7 @@
       <div class="p-4 bg-[#8B1527] text-white flex justify-between items-center">
         <div>
           <h2 class="text-base font-black">Past Cash Memos</h2>
-          <div class="text-xs text-white/80">Search & filter previous bills</div>
+          <div class="text-xs text-white/80">Persistent storage in ./data/bills.json</div>
         </div>
         <button class="btn-close-modal p-1.5 hover:bg-white/20 rounded-md text-white">✕</button>
       </div>
@@ -379,7 +378,7 @@
       <div class="p-4 bg-[#8B1527] text-white flex justify-between items-center">
         <div>
           <h2 class="text-base font-black">Customer Directory & Balances</h2>
-          <div class="text-xs text-white/80">Manage customer ledger & outstanding payments</div>
+          <div class="text-xs text-white/80">Persistent server-side customer ledger</div>
         </div>
         <button class="btn-close-modal p-1.5 hover:bg-white/20 rounded-md text-white">✕</button>
       </div>
@@ -411,7 +410,7 @@
       <div class="p-4 border-b border-gray-200 flex justify-between items-center space-x-3">
         <input type="text" id="ratesSearchInput" class="flex-1 text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#8B1527]" placeholder="Search plants, flowers, pots, fertilizers..." />
         <button id="btnAddNewRateModal" class="px-3 py-2 bg-[#8B1527] hover:bg-[#A8263B] text-white font-bold rounded-lg text-xs whitespace-nowrap">
-          + New Plant
+          + Add Plant
         </button>
       </div>
 
@@ -453,7 +452,7 @@
           </div>
           <div>
             <label class="block font-bold text-gray-700 mb-1">GSTIN / Tax ID</label>
-            <input type="text" id="cfgGstin" class="w-full border border-gray-300 rounded px-2.5 py-1.5 font-mono" />
+            <input type="text" id="cfgGstin" class="w-full border border-gray-300 rounded px-2.5 py-1.5 font-mono" value="NaN" />
           </div>
         </div>
 
@@ -469,7 +468,7 @@
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block font-bold text-gray-700 mb-1">UPI ID (For Live QR Code)</label>
+            <label class="block font-bold text-gray-700 mb-1">UPI ID (For Live Vector QR)</label>
             <input type="text" id="cfgUpiVpa" class="w-full border border-gray-300 rounded px-2.5 py-1.5 font-mono" placeholder="dangerousop@ybl" />
           </div>
           <div>
@@ -494,8 +493,8 @@
         </div>
 
         <div>
-          <label class="block font-bold text-gray-700 mb-1">Terms Note</label>
-          <input type="text" id="cfgTerms" class="w-full border border-gray-300 rounded px-2.5 py-1.5" />
+          <label class="block font-bold text-gray-700 mb-1">Terms & Notes</label>
+          <input type="text" id="cfgTerms" class="w-full border border-gray-300 rounded px-2.5 py-1.5" value="Thanks For Visiting Vishal Nurshri !! Visit Again... Thanks" />
         </div>
       </div>
 
@@ -517,7 +516,7 @@
       <div class="p-5 space-y-4 text-xs">
         <div class="p-3 bg-red-50 border border-red-200 rounded-lg">
           <div class="font-bold text-red-900 mb-1">Export Full Backup</div>
-          <p class="text-gray-600 mb-3">Download a portable .json file containing all your cash memos, customer ledgers, business profiles, and plant catalog.</p>
+          <p class="text-gray-600 mb-3">Download a portable .json file containing all your cash memos, customer ledgers, business profiles, and plant catalog from ./data/.</p>
           <button id="btnDownloadBackup" class="w-full py-2 bg-[#8B1527] hover:bg-[#A8263B] text-white font-bold rounded-lg shadow-sm">
             ⬇️ Download Backup JSON
           </button>
@@ -525,7 +524,7 @@
 
         <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
           <div class="font-bold text-gray-800 mb-1">Restore from Backup</div>
-          <p class="text-gray-600 mb-3">Upload a previously saved .json backup file to restore your entire database offline.</p>
+          <p class="text-gray-600 mb-3">Upload a previously saved .json backup file to restore your entire database.</p>
           <input type="file" id="backupFileInput" accept=".json" class="w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-gray-700 file:text-white hover:file:bg-gray-800 cursor-pointer" />
         </div>
       </div>
@@ -559,7 +558,7 @@
         <div>
           <label class="block font-bold text-gray-700 mb-1">Payment Method</label>
           <select id="settlePaymentMethod" class="w-full border border-gray-300 rounded px-2.5 py-1.5">
-            <option value="Cash">Cash (नगद)</option>
+            <option value="Cash">Cash</option>
             <option value="UPI">UPI (Google Pay / PhonePe)</option>
             <option value="Bank Transfer">Bank Transfer</option>
           </select>
@@ -567,7 +566,7 @@
 
         <div>
           <label class="block font-bold text-gray-700 mb-1">Note (if balance remains)</label>
-          <input type="text" id="settleNoteInput" class="w-full border border-gray-300 rounded px-2.5 py-1.5" value="Next Day (कल देगा)" />
+          <input type="text" id="settleNoteInput" class="w-full border border-gray-300 rounded px-2.5 py-1.5" value="Carry Forward" />
         </div>
 
         <button id="btnConfirmSettle" class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg shadow-sm mt-2">

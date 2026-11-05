@@ -1,111 +1,154 @@
 /**
- * CashmemoDB - Offline-first Storage Layer
- * Manages localStorage persistence for Business Profile, Cash Memos,
- * Customer Directory, Balance Ledgers, and Rate Catalog.
- * 100% offline, zero backend required.
+ * CashmemoDB - Persistent Server-Side & Local Storage Hybrid Layer
+ * Connects directly to Python backend REST API (/api/bills, /api/settings, etc.)
+ * writing directly to server-side ./data/bills.json and ./data/settings.json.
+ * 
+ * Works seamlessly in Incognito Mode and brand new browsers by fetching
+ * persistent data directly from the Python backend server.
  */
 
 (function (window) {
   'use strict';
 
+  let cachedSettings = null;
+  let cachedBills = [];
+  let cachedCustomers = [];
+  let cachedRates = [];
+  let isBackendOnline = false;
+
   const STORAGE_KEYS = {
-    BUSINESS_PROFILE: 'cashmemo_business_profile_v1',
-    MEMOS: 'cashmemo_memos_v1',
-    CUSTOMERS: 'cashmemo_customers_v1',
-    BALANCE_HISTORY: 'cashmemo_balance_history_v1',
-    RATES: 'cashmemo_rates_v1',
-    INITIALIZED: 'cashmemo_initialized_v1'
+    BUSINESS_PROFILE: 'cashmemo_business_profile_v2',
+    MEMOS: 'cashmemo_memos_v2',
+    CUSTOMERS: 'cashmemo_customers_v2',
+    RATES: 'cashmemo_rates_v2'
   };
 
-  function getRaw(key, fallback = null) {
+  function getLocal(key, fallback = null) {
     try {
       const val = localStorage.getItem(key);
       return val ? JSON.parse(val) : fallback;
-    } catch (e) {
-      console.error('Error reading localStorage for key', key, e);
+    } catch (_) {
       return fallback;
     }
   }
 
-  function setRaw(key, val) {
+  function setLocal(key, val) {
     try {
       localStorage.setItem(key, JSON.stringify(val));
-      return true;
+    } catch (_) {}
+  }
+
+  // Check backend connectivity and fetch initial state
+  async function initDatabase() {
+    try {
+      const res = await fetch('/api/settings', { cache: 'no-cache' });
+      if (res.ok) {
+        isBackendOnline = true;
+        cachedSettings = await res.json();
+        setLocal(STORAGE_KEYS.BUSINESS_PROFILE, cachedSettings);
+
+        // Fetch bills from ./data/bills.json
+        const billsRes = await fetch('/api/bills', { cache: 'no-cache' });
+        if (billsRes.ok) {
+          cachedBills = await billsRes.json();
+          setLocal(STORAGE_KEYS.MEMOS, cachedBills);
+        }
+
+        // Fetch customers from ./data/customers.json
+        const custRes = await fetch('/api/customers', { cache: 'no-cache' });
+        if (custRes.ok) {
+          cachedCustomers = await custRes.json();
+          setLocal(STORAGE_KEYS.CUSTOMERS, cachedCustomers);
+        }
+
+        // Fetch rates from ./data/rates.json
+        const ratesRes = await fetch('/api/rates', { cache: 'no-cache' });
+        if (ratesRes.ok) {
+          cachedRates = await ratesRes.json();
+          setLocal(STORAGE_KEYS.RATES, cachedRates);
+        }
+
+        console.log('[CashmemoDB] Connected to Python backend. Persistent storage active.');
+        return { isBackendOnline: true };
+      }
     } catch (e) {
-      console.error('Error writing localStorage for key', key, e);
-      return false;
+      isBackendOnline = false;
+      console.warn('[CashmemoDB] Running in standalone local mode (backend not detected).');
     }
+
+    // Fallback to local storage if offline
+    cachedSettings = getLocal(STORAGE_KEYS.BUSINESS_PROFILE, window.SampleData.DEFAULT_BUSINESS_PROFILE);
+    cachedBills = getLocal(STORAGE_KEYS.MEMOS, []);
+    cachedCustomers = getLocal(STORAGE_KEYS.CUSTOMERS, []);
+    cachedRates = getLocal(STORAGE_KEYS.RATES, []);
+    return { isBackendOnline: false };
   }
 
-  // --- Initial Bootstrap ---
-  function initDatabase() {
-    const isInit = getRaw(STORAGE_KEYS.INITIALIZED, false);
-    if (!isInit) {
-      if (!getRaw(STORAGE_KEYS.BUSINESS_PROFILE)) {
-        setRaw(STORAGE_KEYS.BUSINESS_PROFILE, window.SampleData.DEFAULT_BUSINESS_PROFILE);
-      }
-      if (!getRaw(STORAGE_KEYS.RATES)) {
-        setRaw(STORAGE_KEYS.RATES, window.SampleData.DEFAULT_PLANT_RATES);
-      }
-      if (!getRaw(STORAGE_KEYS.CUSTOMERS)) {
-        setRaw(STORAGE_KEYS.CUSTOMERS, window.SampleData.SAMPLE_CUSTOMERS);
-      }
-      if (!getRaw(STORAGE_KEYS.MEMOS)) {
-        setRaw(STORAGE_KEYS.MEMOS, []);
-      }
-      if (!getRaw(STORAGE_KEYS.BALANCE_HISTORY)) {
-        setRaw(STORAGE_KEYS.BALANCE_HISTORY, []);
-      }
-      setRaw(STORAGE_KEYS.INITIALIZED, true);
-    }
-  }
-
-  // --- Business Profile ---
+  // --- Settings ---
   function getBusinessProfile() {
-    initDatabase();
-    return getRaw(STORAGE_KEYS.BUSINESS_PROFILE, window.SampleData.DEFAULT_BUSINESS_PROFILE);
+    if (!cachedSettings) {
+      cachedSettings = getLocal(STORAGE_KEYS.BUSINESS_PROFILE, window.SampleData.DEFAULT_BUSINESS_PROFILE);
+    }
+    // Enforce required defaults
+    if (!cachedSettings.gstin) cachedSettings.gstin = "NaN";
+    if (!cachedSettings.termsNote) {
+      cachedSettings.termsNote = "Thanks For Visiting Vishal Nurshri !! Visit Again... Thanks";
+    }
+    return cachedSettings;
   }
 
-  function saveBusinessProfile(profile) {
+  async function saveBusinessProfile(profile) {
     const current = getBusinessProfile();
     const merged = { ...current, ...profile };
-    setRaw(STORAGE_KEYS.BUSINESS_PROFILE, merged);
+    if (!merged.gstin) merged.gstin = "NaN";
+    if (!merged.termsNote) {
+      merged.termsNote = "Thanks For Visiting Vishal Nurshri !! Visit Again... Thanks";
+    }
+    cachedSettings = merged;
+    setLocal(STORAGE_KEYS.BUSINESS_PROFILE, merged);
+
+    if (isBackendOnline) {
+      try {
+        await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(merged)
+        });
+      } catch (e) {
+        console.error('Failed saving settings to backend:', e);
+      }
+    }
     return merged;
   }
 
   function incrementNextMemoNumber(usedNum) {
     const profile = getBusinessProfile();
     const numericUsed = parseInt(String(usedNum).replace(/\D/g, ''), 10);
-    if (!isNaN(numericUsed) && numericUsed >= profile.nextMemoNumber) {
+    if (!isNaN(numericUsed) && numericUsed >= (profile.nextMemoNumber || 1001)) {
       profile.nextMemoNumber = numericUsed + 1;
       saveBusinessProfile(profile);
     }
   }
 
-  // --- Cash Memos ---
+  // --- Bills (Cash Memos) ---
   function getAllMemos() {
-    initDatabase();
-    const memos = getRaw(STORAGE_KEYS.MEMOS, []);
-    // sort newest first
-    return memos.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    if (!cachedBills) cachedBills = [];
+    return cachedBills.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   }
 
   function getMemoById(id) {
-    const memos = getAllMemos();
-    return memos.find(m => String(m.id) === String(id)) || null;
+    return cachedBills.find(m => String(m.id) === String(id)) || null;
   }
 
-  function saveMemo(memoData) {
-    const memos = getAllMemos();
+  async function saveMemo(memoData) {
     const profile = getBusinessProfile();
     const now = Date.now();
-
     const isEdit = Boolean(memoData.id);
     const id = isEdit ? memoData.id : 'memo_' + now + '_' + Math.random().toString(36).substring(2, 7);
 
     const memoEntity = {
       id: id,
-      memoNumber: memoData.memoNumber || String(profile.nextMemoNumber),
+      memoNumber: memoData.memoNumber || String(profile.nextMemoNumber || 1001),
       date: memoData.date || new Date().toLocaleDateString('en-GB'),
       dueDate: memoData.dueDate || '',
       customerName: (memoData.customerName || '').trim(),
@@ -115,17 +158,15 @@
       items: Array.isArray(memoData.items) ? memoData.items : [],
       subtotal: Number(memoData.subtotal) || 0,
       discount: Number(memoData.discount) || 0,
-      discountType: memoData.discountType || 'amount', // 'amount' or 'percentage'
+      discountType: memoData.discountType || 'amount',
       taxPercentage: Number(memoData.taxPercentage) || 0,
       taxAmount: Number(memoData.taxAmount) || 0,
-      taxType: memoData.taxType || profile.taxType || 'GST',
-      gstTaxSplit: memoData.gstTaxSplit || profile.gstTaxSplit || 'CGST_SGST',
       previousDues: Number(memoData.previousDues) || 0,
       grandTotal: Number(memoData.grandTotal) || 0,
       paidAmount: Number(memoData.paidAmount) || 0,
       balanceDue: Number(memoData.balanceDue) || 0,
       paymentMethod: memoData.paymentMethod || 'Cash',
-      paymentStatusNote: memoData.paymentStatusNote || '',
+      paymentStatusNote: memoData.paymentStatusNote || 'Carry Forward',
       notes: memoData.notes || '',
       businessName: profile.shopNameHindi,
       businessPhone: profile.phone,
@@ -135,24 +176,46 @@
       updatedAt: now
     };
 
-    if (isEdit) {
-      const idx = memos.findIndex(m => String(m.id) === String(id));
-      if (idx !== -1) memos[idx] = memoEntity;
-      else memos.unshift(memoEntity);
+    // Update in-memory cache & local storage
+    const idx = cachedBills.findIndex(m => String(m.id) === String(id));
+    if (idx !== -1) {
+      cachedBills[idx] = memoEntity;
     } else {
-      memos.unshift(memoEntity);
+      cachedBills.unshift(memoEntity);
       incrementNextMemoNumber(memoEntity.memoNumber);
     }
+    setLocal(STORAGE_KEYS.MEMOS, cachedBills);
 
-    setRaw(STORAGE_KEYS.MEMOS, memos);
-    syncCustomerLedger(memoEntity);
+    // Save server-side into ./data/bills.json immediately
+    if (isBackendOnline) {
+      try {
+        await fetch('/api/bills', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(memoEntity)
+        });
+        // Refresh customer list from backend after sync
+        const custRes = await fetch('/api/customers');
+        if (custRes.ok) cachedCustomers = await custRes.json();
+      } catch (e) {
+        console.error('Failed saving memo to backend:', e);
+      }
+    }
+
     return memoEntity;
   }
 
-  function deleteMemo(id) {
-    let memos = getAllMemos();
-    memos = memos.filter(m => String(m.id) !== String(id));
-    setRaw(STORAGE_KEYS.MEMOS, memos);
+  async function deleteMemo(id) {
+    cachedBills = cachedBills.filter(m => String(m.id) !== String(id));
+    setLocal(STORAGE_KEYS.MEMOS, cachedBills);
+
+    if (isBackendOnline) {
+      try {
+        await fetch(`/api/bills/${id}`, { method: 'DELETE' });
+      } catch (e) {
+        console.error('Failed deleting memo on backend:', e);
+      }
+    }
     return true;
   }
 
@@ -161,11 +224,9 @@
     const q = query.trim().toLowerCase();
 
     return memos.filter(m => {
-      // filter mode
       if (filter === 'PENDING_DUE' && (m.balanceDue || 0) <= 0.009) return false;
       if (filter === 'PAID' && (m.balanceDue || 0) > 0.009) return false;
 
-      // search match
       if (!q) return true;
       const memoNum = String(m.memoNumber || '').toLowerCase();
       const custName = String(m.customerName || '').toLowerCase();
@@ -183,36 +244,12 @@
     });
   }
 
-  // --- Customers & Balance History Ledger ---
+  // --- Customers & Balance History ---
   function getAllCustomers() {
-    initDatabase();
-    const customers = getRaw(STORAGE_KEYS.CUSTOMERS, []);
-    return customers.sort((a, b) => (b.lastTransactionAt || b.createdAt || 0) - (a.lastTransactionAt || a.createdAt || 0));
+    return (cachedCustomers || []).sort((a, b) => (b.lastTransactionAt || 0) - (a.lastTransactionAt || 0));
   }
 
-  function getCustomerById(id) {
-    const customers = getAllCustomers();
-    return customers.find(c => String(c.id) === String(id)) || null;
-  }
-
-  function findCustomer(name, phone) {
-    const customers = getAllCustomers();
-    const cleanPhone = (phone || '').trim();
-    const cleanName = (name || '').trim().toLowerCase();
-
-    if (cleanPhone) {
-      const byPhone = customers.find(c => (c.phoneNumber || '').trim() === cleanPhone);
-      if (byPhone) return byPhone;
-    }
-    if (cleanName) {
-      const byName = customers.find(c => (c.name || '').trim().toLowerCase() === cleanName);
-      if (byName) return byName;
-    }
-    return null;
-  }
-
-  function saveCustomer(customerData) {
-    const customers = getAllCustomers();
+  async function saveCustomer(customerData) {
     const now = Date.now();
     const isEdit = Boolean(customerData.id);
     const id = isEdit ? customerData.id : 'cust_' + now + '_' + Math.random().toString(36).substring(2, 6);
@@ -225,135 +262,32 @@
       outstandingBalance: Number(customerData.outstandingBalance) || 0,
       totalPurchased: Number(customerData.totalPurchased) || 0,
       totalPaid: Number(customerData.totalPaid) || 0,
-      lastPromiseNote: customerData.lastPromiseNote || '',
+      lastPromiseNote: customerData.lastPromiseNote || 'Carry Forward',
       lastTransactionAt: customerData.lastTransactionAt || now,
       createdAt: customerData.createdAt || now
     };
 
-    if (isEdit) {
-      const idx = customers.findIndex(c => String(c.id) === String(id));
-      if (idx !== -1) customers[idx] = entity;
-      else customers.unshift(entity);
-    } else {
-      customers.unshift(entity);
-    }
+    const idx = cachedCustomers.findIndex(c => String(c.id) === String(id));
+    if (idx !== -1) cachedCustomers[idx] = entity;
+    else cachedCustomers.unshift(entity);
+    setLocal(STORAGE_KEYS.CUSTOMERS, cachedCustomers);
 
-    setRaw(STORAGE_KEYS.CUSTOMERS, customers);
+    if (isBackendOnline) {
+      try {
+        await fetch('/api/customers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(entity)
+        });
+      } catch (e) {
+        console.error('Failed saving customer to backend:', e);
+      }
+    }
     return entity;
   }
 
-  function deleteCustomer(id) {
-    let customers = getAllCustomers();
-    customers = customers.filter(c => String(c.id) !== String(id));
-    setRaw(STORAGE_KEYS.CUSTOMERS, customers);
-
-    // clean associated balance history
-    let history = getAllBalanceHistory();
-    history = history.filter(h => String(h.customerId) !== String(id));
-    setRaw(STORAGE_KEYS.BALANCE_HISTORY, history);
-    return true;
-  }
-
-  function getAllBalanceHistory() {
-    initDatabase();
-    const history = getRaw(STORAGE_KEYS.BALANCE_HISTORY, []);
-    return history.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-  }
-
-  function getCustomerHistory(customerId) {
-    const history = getAllBalanceHistory();
-    return history.filter(h => String(h.customerId) === String(customerId));
-  }
-
-  function addBalanceHistoryEntry(entry) {
-    const history = getAllBalanceHistory();
-    const newEntry = {
-      id: 'bh_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-      timestamp: Date.now(),
-      ...entry
-    };
-    history.unshift(newEntry);
-    setRaw(STORAGE_KEYS.BALANCE_HISTORY, history);
-    return newEntry;
-  }
-
-  function syncCustomerLedger(memo) {
-    if (!memo.customerName && !memo.customerMobile) return;
-
-    const existing = findCustomer(memo.customerName, memo.customerMobile);
-    const now = Date.now();
-    const paidNow = Number(memo.paidAmount) || 0;
-    const balanceDue = Number(memo.balanceDue) || 0;
-    const billGrandTotal = Number(memo.grandTotal) || 0;
-    const totalPayable = billGrandTotal + (Number(memo.previousDues) || 0);
-
-    if (existing) {
-      // update customer
-      const newBalance = (memo.previousDues >= existing.outstandingBalance && existing.outstandingBalance > 0)
-        ? balanceDue
-        : Math.max(0, (existing.outstandingBalance || 0) + (billGrandTotal - paidNow));
-
-      existing.name = memo.customerName || existing.name;
-      existing.phoneNumber = memo.customerMobile || existing.phoneNumber;
-      existing.address = memo.customerAddress || existing.address;
-      existing.outstandingBalance = newBalance;
-      existing.totalPurchased = (existing.totalPurchased || 0) + billGrandTotal;
-      existing.totalPaid = (existing.totalPaid || 0) + paidNow;
-      existing.lastPromiseNote = balanceDue > 0.009 ? (memo.paymentStatusNote || 'Next Day') : 'Fully Paid (चुकता)';
-      existing.lastTransactionAt = now;
-
-      saveCustomer(existing);
-
-      addBalanceHistoryEntry({
-        customerId: existing.id,
-        customerName: existing.name,
-        customerPhone: existing.phoneNumber,
-        memoId: memo.id,
-        memoNumber: memo.memoNumber,
-        transactionType: 'BILL_CREATED',
-        billAmount: totalPayable,
-        paidAmount: paidNow,
-        balanceChange: newBalance - (existing.outstandingBalance || 0),
-        resultingBalance: newBalance,
-        paymentMethod: memo.paymentMethod || 'Cash',
-        note: balanceDue > 0.009
-          ? `Bill #${memo.memoNumber}: Paid ₹${paidNow} of ₹${totalPayable} • Due ₹${balanceDue} (${memo.paymentStatusNote || 'Next Day'})`
-          : `Bill #${memo.memoNumber}: Full Payment ₹${paidNow}`
-      });
-    } else {
-      // create new customer
-      const newCust = saveCustomer({
-        name: memo.customerName || `Customer (${memo.customerMobile})`,
-        phoneNumber: memo.customerMobile,
-        address: memo.customerAddress,
-        outstandingBalance: balanceDue,
-        totalPurchased: billGrandTotal,
-        totalPaid: paidNow,
-        lastPromiseNote: balanceDue > 0.009 ? (memo.paymentStatusNote || 'Next Day') : 'Fully Paid (चुकता)',
-        lastTransactionAt: now
-      });
-
-      addBalanceHistoryEntry({
-        customerId: newCust.id,
-        customerName: newCust.name,
-        customerPhone: newCust.phoneNumber,
-        memoId: memo.id,
-        memoNumber: memo.memoNumber,
-        transactionType: 'BILL_CREATED',
-        billAmount: totalPayable,
-        paidAmount: paidNow,
-        balanceChange: balanceDue,
-        resultingBalance: balanceDue,
-        paymentMethod: memo.paymentMethod || 'Cash',
-        note: balanceDue > 0.009
-          ? `Bill #${memo.memoNumber}: Paid ₹${paidNow} of ₹${totalPayable} • Due ₹${balanceDue}`
-          : `Bill #${memo.memoNumber}: Full Payment ₹${paidNow}`
-      });
-    }
-  }
-
-  function recordCustomerPayment(customerId, amountReceived, paymentMethod = 'Cash', promiseNote = '') {
-    const cust = getCustomerById(customerId);
+  async function recordCustomerPayment(customerId, amountReceived, paymentMethod = 'Cash', promiseNote = 'Carry Forward') {
+    const cust = cachedCustomers.find(c => String(c.id) === String(customerId));
     if (!cust) return null;
 
     const amt = Number(amountReceived) || 0;
@@ -363,121 +297,134 @@
 
     cust.outstandingBalance = newBalance;
     cust.totalPaid = (cust.totalPaid || 0) + amt;
-    cust.lastPromiseNote = newBalance > 0.009 ? (promiseNote || 'Next Day') : 'Fully Paid (चुकता)';
+    cust.lastPromiseNote = newBalance > 0.009 ? (promiseNote || 'Carry Forward') : 'Fully Paid';
     cust.lastTransactionAt = now;
-    saveCustomer(cust);
+    setLocal(STORAGE_KEYS.CUSTOMERS, cachedCustomers);
 
-    addBalanceHistoryEntry({
-      customerId: cust.id,
-      customerName: cust.name,
-      customerPhone: cust.phoneNumber,
-      transactionType: newBalance <= 0.009 ? 'BALANCE_SETTLED' : 'PAYMENT_RECEIVED',
-      billAmount: oldBalance,
-      paidAmount: amt,
-      balanceChange: -amt,
-      resultingBalance: newBalance,
-      paymentMethod: paymentMethod,
-      note: newBalance <= 0.009
-        ? `Received ₹${amt} (${paymentMethod}) • All dues cleared!`
-        : `Received ₹${amt} (${paymentMethod}) • Remaining due ₹${newBalance} (${promiseNote || 'Next Day'})`
-    });
-
+    if (isBackendOnline) {
+      try {
+        await fetch(`/api/customers/${customerId}/pay`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: amt, paymentMethod, promiseNote })
+        });
+      } catch (e) {
+        console.error('Failed recording payment on backend:', e);
+      }
+    }
     return cust;
+  }
+
+  async function deleteCustomer(id) {
+    cachedCustomers = cachedCustomers.filter(c => String(c.id) !== String(id));
+    setLocal(STORAGE_KEYS.CUSTOMERS, cachedCustomers);
+
+    if (isBackendOnline) {
+      try {
+        await fetch(`/api/customers/${id}`, { method: 'DELETE' });
+      } catch (e) {
+        console.error('Failed deleting customer on backend:', e);
+      }
+    }
+    return true;
   }
 
   // --- Rate Catalog ---
   function getAllRates() {
-    initDatabase();
-    const rates = getRaw(STORAGE_KEYS.RATES, []);
-    return rates.sort((a, b) => a.name.localeCompare(b.name, 'hi'));
+    return (cachedRates || []).sort((a, b) => a.name.localeCompare(b.name, 'hi'));
   }
 
-  function saveRate(rateData) {
-    const rates = getAllRates();
+  async function saveRate(rateData) {
     const isEdit = Boolean(rateData.id);
     const id = isEdit ? rateData.id : 'pr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
 
     const entity = {
       id: id,
       name: (rateData.name || '').trim(),
-      category: (rateData.category || 'General').trim(),
+      category: (rateData.category || 'Plants').trim(),
       retailPrice: Number(rateData.retailPrice) || 0,
-      wholesalePrice: Number(rateData.wholesalePrice) || 0,
-      hsn: (rateData.hsn || '').trim()
+      wholesalePrice: Number(rateData.wholesalePrice) || 0
     };
 
-    if (isEdit) {
-      const idx = rates.findIndex(r => String(r.id) === String(id));
-      if (idx !== -1) rates[idx] = entity;
-      else rates.push(entity);
-    } else {
-      rates.push(entity);
-    }
+    const idx = cachedRates.findIndex(r => String(r.id) === String(id));
+    if (idx !== -1) cachedRates[idx] = entity;
+    else cachedRates.push(entity);
+    setLocal(STORAGE_KEYS.RATES, cachedRates);
 
-    setRaw(STORAGE_KEYS.RATES, rates);
+    if (isBackendOnline) {
+      try {
+        await fetch('/api/rates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(entity)
+        });
+      } catch (e) {
+        console.error('Failed saving rate to backend:', e);
+      }
+    }
     return entity;
   }
 
-  function deleteRate(id) {
-    let rates = getAllRates();
-    rates = rates.filter(r => String(r.id) !== String(id));
-    setRaw(STORAGE_KEYS.RATES, rates);
+  async function deleteRate(id) {
+    cachedRates = cachedRates.filter(r => String(r.id) !== String(id));
+    setLocal(STORAGE_KEYS.RATES, cachedRates);
+
+    if (isBackendOnline) {
+      try {
+        await fetch(`/api/rates/${id}`, { method: 'DELETE' });
+      } catch (e) {
+        console.error('Failed deleting rate on backend:', e);
+      }
+    }
     return true;
   }
 
   // --- Backup & Restore ---
   function exportFullBackup() {
-    initDatabase();
     return JSON.stringify({
-      version: 5,
+      version: 6,
       appName: 'Cashmemo_Web',
       exportDate: new Date().toISOString(),
       businessProfile: getBusinessProfile(),
       memos: getAllMemos(),
       customers: getAllCustomers(),
-      balanceHistory: getAllBalanceHistory(),
       rates: getAllRates()
     }, null, 2);
   }
 
-  function importFullBackup(jsonString) {
+  async function importFullBackup(jsonString) {
     try {
       const data = JSON.parse(jsonString);
-      let importedMemos = 0;
-      let importedCustomers = 0;
-      let importedRates = 0;
-
-      if (data.businessProfile && typeof data.businessProfile === 'object') {
-        saveBusinessProfile(data.businessProfile);
-      }
+      if (data.businessProfile) await saveBusinessProfile(data.businessProfile);
       if (Array.isArray(data.memos)) {
-        setRaw(STORAGE_KEYS.MEMOS, data.memos);
-        importedMemos = data.memos.length;
+        cachedBills = data.memos;
+        setLocal(STORAGE_KEYS.MEMOS, cachedBills);
       }
       if (Array.isArray(data.customers)) {
-        setRaw(STORAGE_KEYS.CUSTOMERS, data.customers);
-        importedCustomers = data.customers.length;
-      }
-      if (Array.isArray(data.balanceHistory)) {
-        setRaw(STORAGE_KEYS.BALANCE_HISTORY, data.balanceHistory);
+        cachedCustomers = data.customers;
+        setLocal(STORAGE_KEYS.CUSTOMERS, cachedCustomers);
       }
       if (Array.isArray(data.rates)) {
-        setRaw(STORAGE_KEYS.RATES, data.rates);
-        importedRates = data.rates.length;
+        cachedRates = data.rates;
+        setLocal(STORAGE_KEYS.RATES, cachedRates);
+      }
+
+      if (isBackendOnline) {
+        await fetch('/api/backup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: jsonString
+        });
       }
 
       return {
         success: true,
-        memosCount: importedMemos,
-        customersCount: importedCustomers,
-        ratesCount: importedRates
+        memosCount: (data.memos || []).length,
+        customersCount: (data.customers || []).length,
+        ratesCount: (data.rates || []).length
       };
     } catch (e) {
-      console.error('Backup import error:', e);
-      return {
-        success: false,
-        error: e.message || 'Invalid JSON format'
-      };
+      return { success: false, error: e.message };
     }
   }
 
@@ -491,20 +438,14 @@
     deleteMemo,
     searchMemos,
     getAllCustomers,
-    getCustomerById,
-    findCustomer,
     saveCustomer,
-    deleteCustomer,
-    getAllBalanceHistory,
-    getCustomerHistory,
     recordCustomerPayment,
+    deleteCustomer,
     getAllRates,
     saveRate,
     deleteRate,
     exportFullBackup,
     importFullBackup
   };
-
-  initDatabase();
 
 })(window);

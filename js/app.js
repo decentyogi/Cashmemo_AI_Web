@@ -1,13 +1,14 @@
 /**
  * Cashmemo Web - Master Application Controller
- * Handles UI events, live recalculations, reactive preview rendering,
- * autocomplete, drawers, modals, backup/restore, and print execution.
+ * Handles persistent backend storage, auto-save mechanisms,
+ * high-resolution vector UPI QR generation, simplified billing tables,
+ * and live recalculation without page reloads.
  */
 
 (function (window, document) {
   'use strict';
 
-  // --- State ---
+  // --- Reactive Application State ---
   const state = {
     memoId: null,
     memoNumber: '1001',
@@ -18,27 +19,22 @@
     customerAddress: '',
     customerGstin: '',
     items: [
-      createItem(1, '', 1, 0, 0, 'amount', 0, '')
+      createItem(1, '', 1, 0)
     ],
     discount: 0,
-    discountType: 'amount', // 'amount' or 'percentage'
+    discountType: 'amount',
     taxPercentage: 0,
-    taxType: 'GST',
-    gstTaxSplit: 'CGST_SGST', // 'CGST_SGST' or 'IGST'
     previousDues: 0,
     paidAmount: 0,
     hasCustomPayment: false,
     paymentMethod: 'Cash',
-    paymentStatusNote: 'Next Day (कल देगा)',
+    paymentStatusNote: 'Carry Forward', // Strictly English label
     notes: '',
-    previewTheme: 'traditional', // 'traditional' or 'modern'
+    previewTheme: 'traditional',
     isWholesaleMode: false
   };
 
-  let qrcodeInstance = null;
-  let qrcodeModalInstance = null;
-
-  // --- Helper Functions ---
+  // --- Helpers ---
   function getTodayFormatted() {
     const d = new Date();
     const day = String(d.getDate()).padStart(2, '0');
@@ -47,30 +43,18 @@
     return `${day}/${month}/${year}`;
   }
 
-  function createItem(serialNo, description = '', quantity = 1, rate = 0, discount = 0, discountType = 'amount', taxRate = 0, hsn = '') {
+  // Simplified Item Model: Removed HSN & per-item discount to maximize description width
+  function createItem(serialNo, description = '', quantity = 1, rate = 0) {
+    const q = Number(quantity) || 1;
+    const r = Number(rate) || 0;
     return {
       id: 'itm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       serialNo: serialNo,
       description: description,
-      hsn: hsn,
-      quantity: Number(quantity) || 1,
-      rate: Number(rate) || 0,
-      discount: Number(discount) || 0,
-      discountType: discountType || 'amount',
-      taxRate: Number(taxRate) || 0,
-      amount: calculateItemAmount(quantity, rate, discount, discountType)
+      quantity: q,
+      rate: r,
+      amount: Math.max(0, q * r)
     };
-  }
-
-  function calculateItemAmount(qty, rate, disc, discType) {
-    const q = Number(qty) || 0;
-    const r = Number(rate) || 0;
-    const base = q * r;
-    let d = Number(disc) || 0;
-    if (discType === '%') {
-      d = (base * d) / 100;
-    }
-    return Math.max(0, base - d);
   }
 
   function showToast(message, type = 'success') {
@@ -93,15 +77,16 @@
 
   // --- Calculation Engine ---
   function recalculateAll() {
-    // 1. Recalculate line items
     let subtotal = 0;
     state.items.forEach((item, index) => {
       item.serialNo = index + 1;
-      item.amount = calculateItemAmount(item.quantity, item.rate, item.discount, item.discountType);
+      const q = Number(item.quantity) || 0;
+      const r = Number(item.rate) || 0;
+      item.amount = Math.max(0, q * r);
       subtotal += item.amount;
     });
 
-    // 2. Invoice level discount
+    // Invoice level discount
     let overallDiscountAmount = Number(state.discount) || 0;
     if (state.discountType === '%') {
       overallDiscountAmount = (subtotal * overallDiscountAmount) / 100;
@@ -109,16 +94,16 @@
     overallDiscountAmount = Math.min(subtotal, Math.max(0, overallDiscountAmount));
     const taxableBase = Math.max(0, subtotal - overallDiscountAmount);
 
-    // 3. Tax calculation
+    // Tax calculation
     const taxRate = Number(state.taxPercentage) || 0;
     const taxAmount = (taxableBase * taxRate) / 100;
 
-    // 4. Grand Total & Total Payable
+    // Grand Total & Total Payable
     const grandTotal = Math.round((taxableBase + taxAmount) * 100) / 100;
     const previousDues = Number(state.previousDues) || 0;
     const totalPayable = grandTotal + previousDues;
 
-    // 5. Payment & Balances
+    // Payment & Balances
     const effectivePaid = state.hasCustomPayment ? Number(state.paidAmount) || 0 : totalPayable;
     const balanceDue = state.hasCustomPayment ? Math.max(0, totalPayable - effectivePaid) : 0;
     const changeToReturn = state.hasCustomPayment ? Math.max(0, effectivePaid - totalPayable) : 0;
@@ -149,23 +134,18 @@
       tr.className = 'border-b border-gray-200 hover:bg-gray-50 transition-colors';
       tr.innerHTML = `
         <td class="p-2 text-center text-xs font-semibold text-gray-500">${index + 1}</td>
+        <!-- Expanded Item Description / Plant Name Column -->
         <td class="p-2">
           <div class="relative">
             <input type="text"
-              class="w-full text-xs font-medium border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:border-red-700 item-desc-input"
+              class="w-full text-xs font-semibold border border-gray-300 rounded px-2.5 py-1.5 focus:outline-none focus:border-red-700 item-desc-input"
               data-index="${index}"
               value="${escapeHtml(item.description)}"
-              placeholder="e.g. गुलाब, Mango Grafted, 12 inch Gamla" />
-            <div class="item-suggestions absolute left-0 right-0 top-full bg-white shadow-lg border border-gray-200 rounded-b mt-0.5 z-20 hidden max-h-40 overflow-y-auto"></div>
+              placeholder="Enter plant / botanical / vernacular name..." />
+            <div class="item-suggestions absolute left-0 right-0 top-full bg-white shadow-xl border border-gray-200 rounded-b mt-0.5 z-20 hidden max-h-48 overflow-y-auto"></div>
           </div>
         </td>
-        <td class="p-2">
-          <input type="text"
-            class="w-full text-xs text-center border border-gray-300 rounded px-1 py-1.5 focus:outline-none focus:border-red-700"
-            data-index="${index}" data-field="hsn"
-            value="${escapeHtml(item.hsn || '')}"
-            placeholder="0602" />
-        </td>
+        <!-- Quantity Stepper -->
         <td class="p-2">
           <div class="flex items-center justify-center space-x-1">
             <button type="button" class="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-bold btn-qty-dec" data-index="${index}">-</button>
@@ -176,27 +156,18 @@
             <button type="button" class="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-bold btn-qty-inc" data-index="${index}">+</button>
           </div>
         </td>
+        <!-- Rate / Unit Price -->
         <td class="p-2">
           <input type="number" step="any" min="0"
-            class="w-full text-xs text-right border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:border-red-700 font-medium"
+            class="w-full text-xs text-right border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:border-red-700 font-semibold"
             data-index="${index}" data-field="rate"
             value="${item.rate}" />
         </td>
-        <td class="p-2">
-          <div class="flex items-center space-x-1">
-            <input type="number" step="any" min="0"
-              class="w-14 text-xs text-right border border-gray-300 rounded px-1 py-1.5 focus:outline-none focus:border-red-700"
-              data-index="${index}" data-field="discount"
-              value="${item.discount || 0}" />
-            <select class="text-xs border border-gray-300 rounded px-1 py-1.5 bg-gray-50 focus:outline-none" data-index="${index}" data-field="discountType">
-              <option value="amount" ${item.discountType === 'amount' ? 'selected' : ''}>₹</option>
-              <option value="%" ${item.discountType === '%' ? 'selected' : ''}>%</option>
-            </select>
-          </div>
-        </td>
-        <td class="p-2 text-right font-bold text-xs text-gray-800 item-row-amount">
+        <!-- Row Total -->
+        <td class="p-2 text-right font-bold text-xs text-gray-800 item-row-amount font-mono">
           ₹ ${item.amount.toFixed(2)}
         </td>
+        <!-- Actions: Clone & Delete -->
         <td class="p-2 text-center">
           <div class="flex items-center justify-center space-x-1">
             <button type="button" title="Clone row" class="p-1 text-gray-400 hover:text-blue-600 transition-colors btn-row-clone" data-index="${index}">
@@ -215,9 +186,9 @@
   }
 
   function bindItemRowEvents() {
-    // Description Autocomplete & Rate Quick Lookup
+    // Autocomplete lookup for Plant Rate Catalog
     document.querySelectorAll('.item-desc-input').forEach(input => {
-      input.addEventListener('input', function (e) {
+      input.addEventListener('input', function () {
         const idx = parseInt(this.dataset.index, 10);
         state.items[idx].description = this.value;
 
@@ -238,10 +209,9 @@
             <div class="px-3 py-1.5 hover:bg-red-50 cursor-pointer flex justify-between items-center text-xs text-gray-700 item-suggestion-row"
               data-name="${escapeHtml(m.name)}"
               data-retail="${m.retailPrice}"
-              data-wholesale="${m.wholesalePrice}"
-              data-hsn="${m.hsn || ''}">
-              <span class="font-medium">${escapeHtml(m.name)}</span>
-              <span class="text-xs text-red-800 font-bold">₹${state.isWholesaleMode ? m.wholesalePrice : m.retailPrice}</span>
+              data-wholesale="${m.wholesalePrice}">
+              <span class="font-semibold">${escapeHtml(m.name)}</span>
+              <span class="text-xs text-red-800 font-bold font-mono">₹${state.isWholesaleMode ? m.wholesalePrice : m.retailPrice}</span>
             </div>
           `).join('');
           suggestionsBox.classList.remove('hidden');
@@ -250,11 +220,9 @@
             row.addEventListener('click', function () {
               const name = this.dataset.name;
               const price = state.isWholesaleMode ? Number(this.dataset.wholesale) : Number(this.dataset.retail);
-              const hsn = this.dataset.hsn;
 
               state.items[idx].description = name;
               state.items[idx].rate = price;
-              if (hsn) state.items[idx].hsn = hsn;
 
               renderEditorItems();
               updateLiveCalculations();
@@ -275,26 +243,17 @@
       });
     });
 
-    // Quantity, Rate, Discount, HSN inputs
+    // Quantity & Rate inputs
     document.querySelectorAll('#itemsTableBody input[data-field]').forEach(input => {
       input.addEventListener('input', function () {
         const idx = parseInt(this.dataset.index, 10);
         const field = this.dataset.field;
-        state.items[idx][field] = field === 'hsn' ? this.value : Number(this.value) || 0;
+        state.items[idx][field] = Number(this.value) || 0;
         updateLiveCalculations();
       });
     });
 
-    // Discount Type select
-    document.querySelectorAll('#itemsTableBody select[data-field="discountType"]').forEach(sel => {
-      sel.addEventListener('change', function () {
-        const idx = parseInt(this.dataset.index, 10);
-        state.items[idx].discountType = this.value;
-        updateLiveCalculations();
-      });
-    });
-
-    // Qty Stepper buttons
+    // Qty Increment & Decrement
     document.querySelectorAll('.btn-qty-inc').forEach(btn => {
       btn.addEventListener('click', function () {
         const idx = parseInt(this.dataset.index, 10);
@@ -314,7 +273,7 @@
           if (state.items.length > 1) {
             state.items.splice(idx, 1);
           } else {
-            state.items[0] = createItem(1, '', 1, 0, 0, 'amount', 0, '');
+            state.items[0] = createItem(1, '', 1, 0);
           }
         }
         renderEditorItems();
@@ -322,33 +281,24 @@
       });
     });
 
-    // Clone Row button
+    // Clone Row
     document.querySelectorAll('.btn-row-clone').forEach(btn => {
       btn.addEventListener('click', function () {
         const idx = parseInt(this.dataset.index, 10);
         const src = state.items[idx];
-        const clone = createItem(
-          state.items.length + 1,
-          src.description,
-          src.quantity,
-          src.rate,
-          src.discount,
-          src.discountType,
-          src.taxRate,
-          src.hsn
-        );
+        const clone = createItem(state.items.length + 1, src.description, src.quantity, src.rate);
         state.items.splice(idx + 1, 0, clone);
         renderEditorItems();
         updateLiveCalculations();
       });
     });
 
-    // Delete Row button
+    // Delete Row
     document.querySelectorAll('.btn-row-del').forEach(btn => {
       btn.addEventListener('click', function () {
         const idx = parseInt(this.dataset.index, 10);
         if (state.items.length <= 1) {
-          state.items = [createItem(1, '', 1, 0, 0, 'amount', 0, '')];
+          state.items = [createItem(1, '', 1, 0)];
         } else {
           state.items.splice(idx, 1);
         }
@@ -407,7 +357,7 @@
       elWords.textContent = window.NumberToWordsConverter.convertToIndianRupees(calc.totalPayable);
     }
 
-    // Re-render Live Print Slip Preview
+    // Re-render Live Print Slip Preview with High-Res Vector QR Code
     renderLivePaperSlip(calc);
   }
 
@@ -425,14 +375,14 @@
       renderModernGstSlip(previewContainer, profile, calc);
     }
 
-    // Generate Scannable UPI QR Code
-    generateUpiQr(calc.totalPayable, profile);
+    // Generate Razor-Sharp High-Resolution Vector UPI QR Code
+    generateVectorUpiQr(calc.totalPayable, profile);
   }
 
   function renderTraditionalSlip(container, profile, calc) {
     const { rupees, paise } = window.NumberToWordsConverter.splitRupeesAndPaise(calc.totalPayable);
     const wordsStr = window.NumberToWordsConverter.convertToIndianRupees(calc.totalPayable);
-    const minRows = 12; // Maintain authentic cashmemo page height
+    const minRows = 12;
 
     let rowsHtml = '';
     for (let i = 0; i < Math.max(minRows, state.items.length); i++) {
@@ -443,21 +393,21 @@
         rowsHtml += `
           <tr class="h-6">
             <td class="text-center font-bold w-8">${item.serialNo}</td>
-            <td class="font-medium px-2">${escapeHtml(item.description)}</td>
+            <td class="font-medium px-2 leading-tight">${escapeHtml(item.description)}</td>
             <td class="text-center w-12 font-medium">${qtyDisplay}</td>
-            <td class="text-right w-14 pr-1 font-mono">${item.rate > 0 ? item.rate.toFixed(2) : ''}</td>
+            <td class="text-right w-16 pr-1 font-mono">${item.rate > 0 ? item.rate.toFixed(2) : ''}</td>
             <td class="text-center w-16 font-mono font-bold">${itemSplit.rupees}</td>
             <td class="text-center w-8 font-mono">${itemSplit.paise}</td>
           </tr>
         `;
       } else {
-        // Blank filler row to replicate authentic printed memo slip
+        // Blank filler row replicating authentic physical cash memo paper
         rowsHtml += `
           <tr class="h-6">
             <td class="text-center w-8 opacity-40 text-xs">${i + 1}</td>
             <td class="px-2">&nbsp;</td>
             <td class="text-center w-12">&nbsp;</td>
-            <td class="text-right w-14">&nbsp;</td>
+            <td class="text-right w-16">&nbsp;</td>
             <td class="text-center w-16 opacity-30 font-mono">--</td>
             <td class="text-center w-8 opacity-30 font-mono">--</td>
           </tr>
@@ -465,7 +415,6 @@
       }
     }
 
-    // Breakdown row for Tax / Discount / Previous Dues / Partial Payment
     let breakdownHtml = '';
     const hasExtras = calc.overallDiscountAmount > 0 || calc.taxAmount > 0 || calc.previousDues > 0 || calc.balanceDue > 0.009;
     if (hasExtras) {
@@ -473,15 +422,15 @@
         <div class="mt-2 text-xs text-red-900 border-t border-red-900/30 pt-1.5 space-y-0.5">
           <div class="flex flex-wrap gap-x-3 text-[11px] italic">
             <span>Bill Subtotal: ₹${calc.subtotal.toFixed(2)}</span>
-            ${calc.overallDiscountAmount > 0 ? `<span>| छूट (Discount): -₹${calc.overallDiscountAmount.toFixed(2)}</span>` : ''}
+            ${calc.overallDiscountAmount > 0 ? `<span>| Discount: -₹${calc.overallDiscountAmount.toFixed(2)}</span>` : ''}
             ${calc.taxAmount > 0 ? `<span>| GST (${calc.taxRate}%): +₹${calc.taxAmount.toFixed(2)}</span>` : ''}
-            ${calc.previousDues > 0 ? `<span>| पिछला बकाया (Prev Dues): +₹${calc.previousDues.toFixed(2)}</span>` : ''}
+            ${calc.previousDues > 0 ? `<span>| Prev Dues: +₹${calc.previousDues.toFixed(2)}</span>` : ''}
           </div>
           ${calc.balanceDue > 0.009 ? `
             <div class="text-[11.5px] font-bold text-red-950 flex flex-wrap gap-x-2 pt-0.5">
-              <span>जमा राशि (Paid): ₹${calc.effectivePaid.toFixed(2)}</span>
-              <span>| शेष बकाया (Balance Due): ₹${calc.balanceDue.toFixed(2)}</span>
-              ${state.paymentStatusNote ? `<span>• [${escapeHtml(state.paymentStatusNote)}]</span>` : ''}
+              <span>Paid: ₹${calc.effectivePaid.toFixed(2)}</span>
+              <span>| Balance Due: ₹${calc.balanceDue.toFixed(2)}</span>
+              <span>• [${escapeHtml(state.paymentStatusNote || 'Carry Forward')}]</span>
             </div>
           ` : ''}
         </div>
@@ -492,13 +441,13 @@
       <div class="cashmemo-slip p-3 select-none">
         <div class="cashmemo-slip-outer-border">
           <div class="cashmemo-slip-inner-border">
-            <!-- Header: Mobile & Floral Ornaments -->
+            <!-- Header: Mobile & Emblems -->
             <div class="flex justify-between items-center text-xs font-bold text-red-900 pb-1">
               <span class="flex items-center space-x-1">
                 <span>🌺 Mob.</span>
                 <span class="tracking-wide">${escapeHtml(profile.phone)}</span>
               </span>
-              <span class="text-[11px] font-semibold">${profile.gstin ? 'GSTIN: ' + escapeHtml(profile.gstin) : '🌸🌿'}</span>
+              <span class="text-[11px] font-semibold">${profile.gstin && profile.gstin !== 'NaN' ? 'GSTIN: ' + escapeHtml(profile.gstin) : '🌸🌿'}</span>
               <span>🌸</span>
             </div>
 
@@ -535,30 +484,30 @@
               </div>
             </div>
 
-            <!-- Customer Details: Name & Mobile & Address -->
+            <!-- Customer Details: Centered Layout Alignment -->
             <div class="text-xs text-red-900 space-y-1 mb-2">
               <div class="flex items-center">
                 <span class="font-bold mr-1">नाम (Name):</span>
-                <span class="border-b border-dotted border-red-900/60 flex-1 px-1 font-medium truncate">${escapeHtml(state.customerName) || '................................................................'}</span>
+                <span class="border-b border-dotted border-red-900/60 flex-1 px-1 font-semibold text-center truncate">${escapeHtml(state.customerName) || '................................................................'}</span>
                 ${state.customerMobile ? `
                   <span class="font-bold ml-2 mr-1">मो०:</span>
-                  <span class="font-medium">${escapeHtml(state.customerMobile)}</span>
+                  <span class="font-medium font-mono">${escapeHtml(state.customerMobile)}</span>
                 ` : ''}
               </div>
               <div class="flex items-center">
                 <span class="font-bold mr-1">पता (Address):</span>
-                <span class="border-b border-dotted border-red-900/60 flex-1 px-1 truncate font-normal">${escapeHtml(state.customerAddress) || '........................................................................................................'}</span>
+                <span class="border-b border-dotted border-red-900/60 flex-1 px-1 text-center truncate font-normal">${escapeHtml(state.customerAddress) || '........................................................................................................'}</span>
               </div>
             </div>
 
-            <!-- TABULAR SECTION -->
+            <!-- STREAMLINED TABULAR SECTION -->
             <table class="slip-table">
               <thead>
                 <tr>
                   <th class="w-8">क्रम.</th>
                   <th>पौधा / सामग्री का विवरण (Description)</th>
                   <th class="w-12">संख्या</th>
-                  <th class="w-14">दाम</th>
+                  <th class="w-16">दाम</th>
                   <th class="w-16">रू०</th>
                   <th class="w-8">पै०</th>
                 </tr>
@@ -586,18 +535,18 @@
 
             <!-- Bottom QR Code & Signature Section -->
             <div class="mt-3 pt-2 border-t border-red-900/20 flex justify-between items-end">
-              <!-- UPI QR Code Block -->
-              <div class="flex items-center space-x-2">
-                <div id="slipQrBox" class="w-20 h-20 bg-white p-1 border border-red-900/30 rounded flex items-center justify-center"></div>
+              <!-- High-Resolution Vector UPI QR Block -->
+              <div class="flex items-center space-x-2.5">
+                <div id="slipQrBox" class="w-24 h-24 bg-white p-1 border border-red-900/30 rounded flex items-center justify-center shadow-xs"></div>
                 <div class="text-[9.5px] text-red-900 space-y-0.5 leading-tight">
                   <div class="font-bold">📱 Scan & Pay UPI</div>
                   <div class="font-mono text-[9px] text-gray-700">${escapeHtml(profile.upiVpa || 'dangerousop@ybl')}</div>
                   <div class="text-[8.5px] text-gray-500">Google Pay • PhonePe • Paytm</div>
-                  <div class="text-[9px] italic pt-0.5">${escapeHtml(profile.termsNote || 'भूल-चूक लेनी-देनी (E. & O.E.)')}</div>
+                  <div class="text-[9px] italic pt-0.5 max-w-[190px] leading-tight text-gray-700">${escapeHtml(profile.termsNote || 'Thanks For Visiting Vishal Nurshri !! Visit Again... Thanks')}</div>
                 </div>
               </div>
 
-              <!-- Authenticated Digital Signature Box -->
+              <!-- Digital Signature Box -->
               <div class="text-right">
                 <div class="digital-signature-badge">
                   <div class="flex items-center justify-center space-x-1 text-[10px] font-bold text-red-900">
@@ -625,10 +574,8 @@
       <tr>
         <td class="text-center font-medium">${idx + 1}</td>
         <td class="font-semibold text-gray-800">${escapeHtml(item.description)}</td>
-        <td class="text-center font-mono">${escapeHtml(item.hsn || '-')}</td>
         <td class="text-center font-medium">${item.quantity}</td>
         <td class="text-right font-mono">₹ ${item.rate.toFixed(2)}</td>
-        <td class="text-right font-mono">₹ ${item.discount > 0 ? item.discount.toFixed(2) : '-'}</td>
         <td class="text-right font-mono font-bold">₹ ${item.amount.toFixed(2)}</td>
       </tr>
     `).join('');
@@ -641,8 +588,8 @@
             <h1 class="text-2xl font-black text-gray-900">${escapeHtml(profile.shopNameEnglish || profile.shopNameHindi)}</h1>
             <div class="text-xs text-red-800 font-bold">${escapeHtml(profile.shopNameHindi)}</div>
             <div class="text-xs text-gray-600 mt-1">${escapeHtml(profile.addressLine1)}, ${escapeHtml(profile.addressLine2)}</div>
-            <div class="text-xs text-gray-600 font-medium">Mob: ${escapeHtml(profile.phone)} ${profile.email ? '• ' + escapeHtml(profile.email) : ''}</div>
-            <div class="text-xs font-bold text-gray-800 mt-0.5">GSTIN: ${escapeHtml(profile.gstin || 'N/A')}</div>
+            <div class="text-xs text-gray-600 font-medium">Mob: ${escapeHtml(profile.phone)}</div>
+            <div class="text-xs font-bold text-gray-800 mt-0.5">GSTIN: ${escapeHtml(profile.gstin || 'NaN')}</div>
           </div>
           <div class="text-right">
             <span class="inline-block bg-red-100 text-red-900 text-xs font-bold px-3 py-1 rounded">TAX INVOICE</span>
@@ -654,18 +601,12 @@
 
         <!-- Bill To -->
         <div class="bg-gray-50 border border-gray-200 rounded p-3 text-xs mb-4 flex justify-between">
-          <div>
+          <div class="w-full text-center">
             <div class="text-gray-500 font-bold uppercase text-[10px] tracking-wider mb-1">BILL TO / CUSTOMER</div>
             <div class="text-sm font-bold text-gray-900">${escapeHtml(state.customerName) || 'Walk-in Customer'}</div>
             <div class="text-gray-600">${escapeHtml(state.customerAddress) || 'Sasaram, Bihar'}</div>
             ${state.customerMobile ? `<div class="text-gray-700 font-medium">Phone: ${escapeHtml(state.customerMobile)}</div>` : ''}
           </div>
-          ${state.customerGstin ? `
-            <div class="text-right">
-              <div class="text-gray-500 font-bold uppercase text-[10px]">CUSTOMER GSTIN</div>
-              <div class="font-mono font-bold text-gray-800">${escapeHtml(state.customerGstin)}</div>
-            </div>
-          ` : ''}
         </div>
 
         <!-- Modern Table -->
@@ -674,11 +615,9 @@
             <tr>
               <th class="w-8 text-center">#</th>
               <th>Description of Goods</th>
-              <th class="w-16 text-center">HSN</th>
-              <th class="w-12 text-center">Qty</th>
-              <th class="w-20 text-right">Unit Price</th>
-              <th class="w-16 text-right">Disc</th>
-              <th class="w-24 text-right">Amount</th>
+              <th class="w-16 text-center">Qty</th>
+              <th class="w-24 text-right">Unit Price</th>
+              <th class="w-28 text-right">Amount</th>
             </tr>
           </thead>
           <tbody>
@@ -693,9 +632,9 @@
               <span class="font-bold text-gray-700">Amount in Words:</span>
               <div class="italic text-gray-800 font-medium">${escapeHtml(wordsStr)}</div>
             </div>
-            <!-- UPI QR -->
+            <!-- High-Res UPI QR -->
             <div class="flex items-center space-x-3 pt-2">
-              <div id="slipQrBox" class="w-20 h-20 bg-white p-1 border border-gray-300 rounded flex items-center justify-center"></div>
+              <div id="slipQrBox" class="w-24 h-24 bg-white p-1 border border-gray-300 rounded flex items-center justify-center"></div>
               <div class="text-xs text-gray-600">
                 <div class="font-bold text-gray-800">Instant UPI Payment</div>
                 <div class="font-mono text-[11px] text-red-900">${escapeHtml(profile.upiVpa || 'dangerousop@ybl')}</div>
@@ -716,21 +655,10 @@
               </div>
             ` : ''}
             ${calc.taxAmount > 0 ? `
-              ${state.gstTaxSplit === 'CGST_SGST' ? `
-                <div class="flex justify-between">
-                  <span>CGST (${(calc.taxRate / 2).toFixed(1)}%):</span>
-                  <span class="font-mono">₹ ${(calc.taxAmount / 2).toFixed(2)}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span>SGST (${(calc.taxRate / 2).toFixed(1)}%):</span>
-                  <span class="font-mono">₹ ${(calc.taxAmount / 2).toFixed(2)}</span>
-                </div>
-              ` : `
-                <div class="flex justify-between">
-                  <span>IGST (${calc.taxRate}%):</span>
-                  <span class="font-mono">₹ ${calc.taxAmount.toFixed(2)}</span>
-                </div>
-              `}
+              <div class="flex justify-between">
+                <span>GST (${calc.taxRate}%):</span>
+                <span class="font-mono">₹ ${calc.taxAmount.toFixed(2)}</span>
+              </div>
             ` : ''}
             ${calc.previousDues > 0 ? `
               <div class="flex justify-between text-red-800 font-medium">
@@ -748,17 +676,16 @@
                 <span class="font-mono">₹ ${calc.effectivePaid.toFixed(2)}</span>
               </div>
               <div class="flex justify-between text-xs font-bold text-red-700">
-                <span>Balance Due:</span>
+                <span>Carry Forward:</span>
                 <span class="font-mono">₹ ${calc.balanceDue.toFixed(2)}</span>
               </div>
             ` : ''}
           </div>
         </div>
 
-        <!-- Footer Signature -->
         <div class="mt-8 pt-4 border-t border-gray-200 flex justify-between items-end text-xs text-gray-500">
           <div>
-            <div>${escapeHtml(profile.termsNote || 'Subject to Sasaram Jurisdiction • E.&O.E.')}</div>
+            <div>${escapeHtml(profile.termsNote || 'Thanks For Visiting Vishal Nurshri !! Visit Again... Thanks')}</div>
           </div>
           <div class="text-right">
             <div class="font-bold text-gray-900">For ${escapeHtml(profile.signerName || 'VISHAL NURSERY')}</div>
@@ -770,16 +697,17 @@
     `;
   }
 
-  // --- Dynamic Scannable UPI QR Generator ---
-  function generateUpiQr(amount, profile) {
+  // --- High-Resolution Vector UPI QR Code Generator ---
+  function generateVectorUpiQr(amount, profile) {
     const qrBox = document.getElementById('slipQrBox');
     if (!qrBox || typeof window.QRCode === 'undefined') return;
 
     qrBox.innerHTML = '';
     const vpa = (profile.upiVpa || 'dangerousop@ybl').trim();
-    const payeeName = (profile.shopNameEnglish || 'Vishal Nursery').trim().replace(/ /g, '%20');
+    const payeeName = 'Vishal%20Nursery';
     const note = 'Plant%20Purchase';
 
+    // Strictly formatted UPI string
     let upiUri = '';
     if (amount && amount > 0) {
       const amtStr = (amount % 1 === 0) ? String(amount.toFixed(0)) : String(amount.toFixed(2));
@@ -789,27 +717,45 @@
     }
 
     try {
-      new window.QRCode(qrBox, {
+      // Calculate QR matrix using QRCode.js
+      const tempDiv = document.createElement('div');
+      const qr = new window.QRCode(tempDiv, {
         text: upiUri,
-        width: 76,
-        height: 76,
-        colorDark: '#000000',
-        colorLight: '#FFFFFF',
         correctLevel: window.QRCode.CorrectLevel.M
       });
+
+      const qrModel = qr._oQRCode;
+      if (qrModel && typeof qrModel.getModuleCount === 'function') {
+        const count = qrModel.getModuleCount();
+        const margin = 4;
+        const totalSize = count + margin * 2;
+
+        // Render pure mathematical vector SVG for zero-blur, crisp paper printing
+        let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalSize} ${totalSize}" shape-rendering="crispEdges" class="w-full h-full upi-qr-svg">`;
+        svg += `<rect width="${totalSize}" height="${totalSize}" fill="#FFFFFF"/>`;
+        for (let r = 0; r < count; r++) {
+          for (let c = 0; c < count; c++) {
+            if (qrModel.isDark(r, c)) {
+              svg += `<rect x="${c + margin}" y="${r + margin}" width="1" height="1" fill="#000000"/>`;
+            }
+          }
+        }
+        svg += `</svg>`;
+        qrBox.innerHTML = svg;
+      }
     } catch (e) {
-      console.error('Error generating UPI QR:', e);
+      console.error('Error generating Vector UPI QR:', e);
     }
   }
 
-  // --- Auto-complete for Customers in Editor ---
+  // --- Auto-complete for Customer Directory ---
   function initCustomerAutocomplete() {
     const nameInput = document.getElementById('editorCustomerName');
     const mobileInput = document.getElementById('editorCustomerMobile');
     const suggestionsBox = document.getElementById('customerSuggestions');
     if (!nameInput || !suggestionsBox) return;
 
-    function handleCustomerLookup(query) {
+    function handleLookup(query) {
       const q = (query || '').trim().toLowerCase();
       if (!q || q.length < 1) {
         suggestionsBox.classList.add('hidden');
@@ -820,7 +766,7 @@
       const customers = window.CashmemoDB.getAllCustomers();
       const matches = customers.filter(c =>
         c.name.toLowerCase().includes(q) || (c.phoneNumber && c.phoneNumber.includes(q))
-      ).slice(0, 6);
+      ).slice(0, 5);
 
       if (matches.length > 0) {
         suggestionsBox.innerHTML = matches.map(c => `
@@ -867,14 +813,12 @@
 
             const dues = Number(this.dataset.balance) || 0;
             const prevDuesInput = document.getElementById('editorPreviousDues');
-            if (prevDuesInput) {
-              prevDuesInput.value = dues;
-            }
+            if (prevDuesInput) prevDuesInput.value = dues;
             state.previousDues = dues;
 
             suggestionsBox.classList.add('hidden');
             updateLiveCalculations();
-            showToast(`Loaded Customer: ${this.dataset.name} (Previous Due: ₹${dues})`, 'info');
+            showToast(`Loaded Customer: ${this.dataset.name}`, 'info');
           });
         });
       } else {
@@ -884,14 +828,14 @@
 
     nameInput.addEventListener('input', function () {
       state.customerName = this.value;
-      handleCustomerLookup(this.value);
+      handleLookup(this.value);
       updateLiveCalculations();
     });
 
     if (mobileInput) {
       mobileInput.addEventListener('input', function () {
         state.customerMobile = this.value;
-        handleCustomerLookup(this.value);
+        handleLookup(this.value);
         updateLiveCalculations();
       });
     }
@@ -903,15 +847,14 @@
     });
   }
 
-  // --- Actions & Persistence ---
-  function saveCurrentMemo(shouldPrint = false) {
+  // --- Auto-Save & Manual Save Operations ---
+  async function saveCurrentMemo(shouldPrint = false) {
     const calc = recalculateAll();
 
-    // Check if at least one item has description or amount
     const validItems = state.items.filter(i => (i.description && i.description.trim()) || i.amount > 0);
     if (validItems.length === 0) {
-      showToast('Please add at least one item to save the memo!', 'error');
-      return;
+      if (shouldPrint) showToast('Please add at least one item to print!', 'error');
+      return null;
     }
 
     const memoData = {
@@ -929,75 +872,64 @@
       discountType: state.discountType,
       taxPercentage: state.taxPercentage,
       taxAmount: calc.taxAmount,
-      taxType: state.taxType,
-      gstTaxSplit: state.gstTaxSplit,
       previousDues: state.previousDues,
       grandTotal: calc.grandTotal,
       paidAmount: calc.effectivePaid,
       balanceDue: calc.balanceDue,
       paymentMethod: state.paymentMethod,
-      paymentStatusNote: calc.balanceDue > 0.009 ? (state.paymentStatusNote || 'Next Day') : 'Fully Paid (चुकता)',
+      paymentStatusNote: calc.balanceDue > 0.009 ? (state.paymentStatusNote || 'Carry Forward') : 'Fully Paid',
       notes: state.notes
     };
 
-    const saved = window.CashmemoDB.saveMemo(memoData);
+    const saved = await window.CashmemoDB.saveMemo(memoData);
     state.memoId = saved.id;
 
-    showToast(`✓ Cash Memo #${saved.memoNumber} saved successfully!`, 'success');
+    showToast(`✓ Cash Memo #${saved.memoNumber} saved to server storage!`, 'success');
 
     if (shouldPrint) {
-      setTimeout(() => {
-        window.print();
-      }, 200);
+      setTimeout(() => window.print(), 200);
     }
+    return saved;
   }
 
-  function createNewMemo() {
+  // Auto-save on "New Bill" action if current bill has content
+  async function createNewMemo() {
+    const hasContent = state.items.some(i => i.description.trim() || i.amount > 0) || state.customerName.trim();
+    if (hasContent) {
+      await saveCurrentMemo(false);
+    }
+
     const profile = window.CashmemoDB.getBusinessProfile();
     state.memoId = null;
-    state.memoNumber = String(profile.nextMemoNumber);
+    state.memoNumber = String(profile.nextMemoNumber || 1001);
     state.date = getTodayFormatted();
     state.dueDate = '';
     state.customerName = '';
     state.customerMobile = '';
     state.customerAddress = '';
     state.customerGstin = '';
-    state.items = [createItem(1, '', 1, 0, 0, 'amount', 0, '')];
+    state.items = [createItem(1, '', 1, 0)];
     state.discount = 0;
     state.taxPercentage = profile.enableTax ? profile.defaultTaxPercentage : 0;
     state.previousDues = 0;
     state.paidAmount = 0;
     state.hasCustomPayment = false;
-    state.paymentStatusNote = 'Next Day (कल देगा)';
+    state.paymentStatusNote = 'Carry Forward';
 
-    // Reset inputs in DOM
-    const elMemoNum = document.getElementById('editorMemoNumber');
-    if (elMemoNum) elMemoNum.value = state.memoNumber;
-
-    const elDate = document.getElementById('editorDate');
-    if (elDate) elDate.value = state.date;
-
-    const elName = document.getElementById('editorCustomerName');
-    if (elName) elName.value = '';
-
-    const elPhone = document.getElementById('editorCustomerMobile');
-    if (elPhone) elPhone.value = '';
-
-    const elAddr = document.getElementById('editorCustomerAddress');
-    if (elAddr) elAddr.value = '';
-
-    const elDues = document.getElementById('editorPreviousDues');
-    if (elDues) elDues.value = 0;
-
-    const elDisc = document.getElementById('editorDiscount');
-    if (elDisc) elDisc.value = 0;
-
-    const elTax = document.getElementById('editorTax');
-    if (elTax) elTax.value = state.taxPercentage;
+    // Reset DOM inputs
+    document.getElementById('editorMemoNumber').value = state.memoNumber;
+    document.getElementById('editorDate').value = state.date;
+    document.getElementById('editorCustomerName').value = '';
+    document.getElementById('editorCustomerMobile').value = '';
+    document.getElementById('editorCustomerAddress').value = '';
+    document.getElementById('editorPreviousDues').value = 0;
+    document.getElementById('editorDiscount').value = 0;
+    document.getElementById('editorTax').value = state.taxPercentage;
+    document.getElementById('editorDueNote').value = 'Carry Forward';
 
     renderEditorItems();
     updateLiveCalculations();
-    showToast('New Memo initialized.', 'info');
+    showToast('New Memo initialized (clean state).', 'info');
   }
 
   function loadMemoIntoEditor(memo) {
@@ -1011,7 +943,7 @@
     state.customerGstin = memo.customerGstin || '';
     state.items = (memo.items && memo.items.length > 0)
       ? memo.items.map((it, idx) => ({ ...it, serialNo: idx + 1 }))
-      : [createItem(1, '', 1, 0, 0, 'amount', 0, '')];
+      : [createItem(1, '', 1, 0)];
     state.discount = memo.discount || 0;
     state.discountType = memo.discountType || 'amount';
     state.taxPercentage = memo.taxPercentage || 0;
@@ -1019,7 +951,7 @@
     state.hasCustomPayment = (memo.balanceDue > 0.009) || (memo.paidAmount > 0 && memo.paidAmount !== memo.grandTotal + memo.previousDues);
     state.paidAmount = memo.paidAmount || 0;
     state.paymentMethod = memo.paymentMethod || 'Cash';
-    state.paymentStatusNote = memo.paymentStatusNote || '';
+    state.paymentStatusNote = memo.paymentStatusNote || 'Carry Forward';
     state.notes = memo.notes || '';
 
     // Update DOM
@@ -1031,6 +963,7 @@
     document.getElementById('editorPreviousDues').value = state.previousDues;
     document.getElementById('editorDiscount').value = state.discount;
     document.getElementById('editorTax').value = state.taxPercentage;
+    document.getElementById('editorDueNote').value = state.paymentStatusNote;
 
     renderEditorItems();
     updateLiveCalculations();
@@ -1042,7 +975,7 @@
     const profile = window.CashmemoDB.getBusinessProfile();
     loadMemoIntoEditor(memo);
     state.memoId = null;
-    state.memoNumber = String(profile.nextMemoNumber);
+    state.memoNumber = String(profile.nextMemoNumber || 1001);
     state.date = getTodayFormatted();
     document.getElementById('editorMemoNumber').value = state.memoNumber;
     document.getElementById('editorDate').value = state.date;
@@ -1050,16 +983,10 @@
     showToast(`Duplicated into new Memo #${state.memoNumber}`, 'success');
   }
 
-  // --- History Drawer & Management ---
+  // --- History Drawer ---
   function openHistoryDrawer() {
     renderHistoryList();
-    const drawer = document.getElementById('historyDrawer');
-    if (drawer) drawer.classList.remove('hidden');
-  }
-
-  function closeHistoryDrawer() {
-    const drawer = document.getElementById('historyDrawer');
-    if (drawer) drawer.classList.add('hidden');
+    document.getElementById('historyDrawer')?.classList.remove('hidden');
   }
 
   function renderHistoryList() {
@@ -1077,26 +1004,16 @@
     const totalSales = allMemos.reduce((sum, m) => sum + (m.grandTotal + (m.previousDues || 0)), 0);
     const totalCollected = allMemos.reduce((sum, m) => sum + (m.paidAmount || 0), 0);
     const totalDues = allMemos.reduce((sum, m) => sum + (m.balanceDue || 0), 0);
-    const pendingCount = allMemos.filter(m => (m.balanceDue || 0) > 0.009).length;
 
-    const elSales = document.getElementById('historyKpiTotalSales');
-    if (elSales) elSales.textContent = `₹ ${totalSales.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
-
-    const elCollected = document.getElementById('historyKpiCollected');
-    if (elCollected) elCollected.textContent = `₹ ${totalCollected.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
-
-    const elPending = document.getElementById('historyKpiPendingDues');
-    if (elPending) elPending.textContent = `₹ ${totalDues.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
-
-    const elCount = document.getElementById('historyKpiPendingCount');
-    if (elCount) elCount.textContent = `${pendingCount} Bills`;
+    document.getElementById('historyKpiTotalSales').textContent = `₹ ${totalSales.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+    document.getElementById('historyKpiCollected').textContent = `₹ ${totalCollected.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+    document.getElementById('historyKpiPendingDues').textContent = `₹ ${totalDues.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
     if (memos.length === 0) {
       listContainer.innerHTML = `
         <div class="text-center py-12 text-gray-400">
           <svg class="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-          <div class="text-sm font-semibold">No memos found</div>
-          <div class="text-xs">Create a new memo or adjust search filter</div>
+          <div class="text-sm font-semibold">No memos found in ./data/bills.json</div>
         </div>
       `;
       return;
@@ -1125,26 +1042,24 @@
               ${m.customerMobile ? `<div class="text-[11px] text-gray-500">📞 ${escapeHtml(m.customerMobile)}</div>` : ''}
             </div>
             <div class="text-right">
-              <div class="text-xs text-gray-500">Grand Total</div>
+              <div class="text-xs text-gray-500">Total Payable</div>
               <div class="text-sm font-black text-gray-900 font-mono">₹ ${(m.grandTotal + (m.previousDues || 0)).toFixed(2)}</div>
             </div>
           </div>
 
-          <!-- Items summary pill -->
           <div class="text-[11px] text-gray-600 truncate border-t border-gray-100 pt-1.5">
             ${(m.items || []).map(i => `${i.description} (${i.quantity})`).join(', ')}
           </div>
 
-          <!-- Actions -->
           <div class="flex justify-between items-center pt-2 border-t border-gray-100 text-xs">
             <div class="flex space-x-1.5">
               <button class="px-2.5 py-1 bg-red-800 hover:bg-red-900 text-white font-medium rounded text-[11px] btn-memo-load" data-id="${m.id}">
                 Edit / View
               </button>
-              <button class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-[11px] btn-memo-dup" data-id="${m.id}" title="Duplicate into new memo">
+              <button class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-[11px] btn-memo-dup" data-id="${m.id}">
                 Duplicate
               </button>
-              <button class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-[11px] btn-memo-print" data-id="${m.id}" title="Print Directly">
+              <button class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-[11px] btn-memo-print" data-id="${m.id}">
                 Print
               </button>
             </div>
@@ -1156,13 +1071,12 @@
       `;
     }).join('');
 
-    // Bind item buttons
     listContainer.querySelectorAll('.btn-memo-load').forEach(b => {
       b.addEventListener('click', function () {
         const memo = window.CashmemoDB.getMemoById(this.dataset.id);
         if (memo) {
           loadMemoIntoEditor(memo);
-          closeHistoryDrawer();
+          closeAllModals();
         }
       });
     });
@@ -1172,7 +1086,7 @@
         const memo = window.CashmemoDB.getMemoById(this.dataset.id);
         if (memo) {
           duplicateMemo(memo);
-          closeHistoryDrawer();
+          closeAllModals();
         }
       });
     });
@@ -1182,18 +1096,18 @@
         const memo = window.CashmemoDB.getMemoById(this.dataset.id);
         if (memo) {
           loadMemoIntoEditor(memo);
-          closeHistoryDrawer();
+          closeAllModals();
           setTimeout(() => window.print(), 200);
         }
       });
     });
 
     listContainer.querySelectorAll('.btn-memo-delete').forEach(b => {
-      b.addEventListener('click', function () {
-        if (confirm('Are you sure you want to delete this memo?')) {
-          window.CashmemoDB.deleteMemo(this.dataset.id);
+      b.addEventListener('click', async function () {
+        if (confirm('Delete this cash memo permanently?')) {
+          await window.CashmemoDB.deleteMemo(this.dataset.id);
           renderHistoryList();
-          showToast('Memo deleted.', 'info');
+          showToast('Memo deleted from server storage.', 'info');
         }
       });
     });
@@ -1202,8 +1116,7 @@
   // --- Customer Directory Modal ---
   function openCustomerModal() {
     renderCustomerList();
-    const modal = document.getElementById('customerModal');
-    if (modal) modal.classList.remove('hidden');
+    document.getElementById('customerModal')?.classList.remove('hidden');
   }
 
   function renderCustomerList() {
@@ -1223,7 +1136,7 @@
       container.innerHTML = `
         <div class="text-center py-10 text-gray-400">
           <div class="text-sm font-semibold">No customers registered</div>
-          <div class="text-xs">Add a customer or save a bill with customer info</div>
+          <div class="text-xs">Saved customers will persist in ./data/customers.json</div>
         </div>
       `;
       return;
@@ -1247,7 +1160,6 @@
               `}
             </div>
             <div class="text-xs text-gray-500 mt-0.5">📞 ${escapeHtml(c.phoneNumber || 'N/A')} • 📍 ${escapeHtml(c.address || 'Sasaram')}</div>
-            <div class="text-[11px] text-gray-400 mt-1">Total Purchases: ₹${(c.totalPurchased || 0).toFixed(0)} • Total Paid: ₹${(c.totalPaid || 0).toFixed(0)}</div>
           </div>
           <div class="flex items-center space-x-2">
             <button class="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-900 font-semibold rounded text-xs btn-cust-bill"
@@ -1289,15 +1201,11 @@
 
     container.querySelectorAll('.btn-cust-pay').forEach(b => {
       b.addEventListener('click', function () {
-        const id = this.dataset.id;
-        const name = this.dataset.name;
-        const due = Number(this.dataset.balance) || 0;
-        openPaymentSettlementModal(id, name, due);
+        openPaymentSettlementModal(this.dataset.id, this.dataset.name, Number(this.dataset.balance) || 0);
       });
     });
   }
 
-  // --- Payment Settlement Modal ---
   function openPaymentSettlementModal(customerId, customerName, outstandingDue) {
     const modal = document.getElementById('paymentSettleModal');
     if (!modal) return;
@@ -1305,6 +1213,7 @@
     document.getElementById('settleCustName').textContent = customerName;
     document.getElementById('settleDueAmount').textContent = `₹ ${outstandingDue.toFixed(2)}`;
     document.getElementById('settleAmountInput').value = outstandingDue.toFixed(2);
+    document.getElementById('settleNoteInput').value = 'Carry Forward';
     modal.dataset.customerId = customerId;
     modal.classList.remove('hidden');
   }
@@ -1312,8 +1221,7 @@
   // --- Plant Rate Catalog Modal ---
   function openRatesModal() {
     renderRatesList();
-    const modal = document.getElementById('ratesModal');
-    if (modal) modal.classList.remove('hidden');
+    document.getElementById('ratesModal')?.classList.remove('hidden');
   }
 
   function renderRatesList() {
@@ -1327,22 +1235,31 @@
       rates = rates.filter(r => r.name.toLowerCase().includes(query) || (r.category && r.category.toLowerCase().includes(query)));
     }
 
+    if (rates.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-10 text-gray-400">
+          <div class="text-sm font-semibold">No plants in catalog</div>
+          <div class="text-xs">Click "+ Add Plant" to add custom plants and items</div>
+        </div>
+      `;
+      return;
+    }
+
     container.innerHTML = rates.map(r => `
       <div class="p-3 bg-white border border-gray-200 rounded-lg hover:border-red-700/50 transition-colors flex justify-between items-center">
         <div>
           <div class="font-bold text-sm text-gray-900">${escapeHtml(r.name)}</div>
-          <div class="text-xs text-gray-500">${escapeHtml(r.category || 'Plants')} ${r.hsn ? '• HSN: ' + escapeHtml(r.hsn) : ''}</div>
+          <div class="text-xs text-gray-500">${escapeHtml(r.category || 'Plants')}</div>
           <div class="flex space-x-3 text-xs mt-1">
-            <span class="font-semibold text-gray-700">Retail: <span class="text-red-900 font-bold">₹${r.retailPrice}</span></span>
-            <span class="font-semibold text-gray-700">Wholesale: <span class="text-blue-900 font-bold">₹${r.wholesalePrice}</span></span>
+            <span class="font-semibold text-gray-700">Retail: <span class="text-red-900 font-bold font-mono">₹${r.retailPrice}</span></span>
+            <span class="font-semibold text-gray-700">Wholesale: <span class="text-blue-900 font-bold font-mono">₹${r.wholesalePrice}</span></span>
           </div>
         </div>
         <div class="flex items-center space-x-1.5">
           <button class="px-3 py-1.5 bg-red-800 hover:bg-red-900 text-white font-semibold rounded text-xs btn-add-rate-bill"
             data-name="${escapeHtml(r.name)}"
             data-retail="${r.retailPrice}"
-            data-wholesale="${r.wholesalePrice}"
-            data-hsn="${r.hsn || ''}">
+            data-wholesale="${r.wholesalePrice}">
             + Add to Bill
           </button>
           <button class="p-1.5 text-gray-400 hover:text-red-600 transition-colors btn-rate-del" data-id="${r.id}" title="Delete">
@@ -1356,17 +1273,14 @@
       b.addEventListener('click', function () {
         const name = this.dataset.name;
         const price = state.isWholesaleMode ? Number(this.dataset.wholesale) : Number(this.dataset.retail);
-        const hsn = this.dataset.hsn;
 
-        // Check if first row is empty
         const first = state.items[0];
         if (state.items.length === 1 && (!first.description || first.description.trim() === '') && first.amount === 0) {
           first.description = name;
           first.rate = price;
-          first.hsn = hsn;
           first.quantity = 1;
         } else {
-          state.items.push(createItem(state.items.length + 1, name, 1, price, 0, 'amount', 0, hsn));
+          state.items.push(createItem(state.items.length + 1, name, 1, price));
         }
 
         renderEditorItems();
@@ -1376,17 +1290,17 @@
     });
 
     container.querySelectorAll('.btn-rate-del').forEach(b => {
-      b.addEventListener('click', function () {
-        if (confirm('Delete this item from rate catalog?')) {
-          window.CashmemoDB.deleteRate(this.dataset.id);
+      b.addEventListener('click', async function () {
+        if (confirm('Delete this item from plant rate catalog?')) {
+          await window.CashmemoDB.deleteRate(this.dataset.id);
           renderRatesList();
-          showToast('Item deleted from rates catalog.', 'info');
+          showToast('Plant deleted from catalog.', 'info');
         }
       });
     });
   }
 
-  // --- Business Profile Settings Modal ---
+  // --- Business Profile Settings ---
   function openSettingsModal() {
     const profile = window.CashmemoDB.getBusinessProfile();
     document.getElementById('cfgShopNameHindi').value = profile.shopNameHindi || '';
@@ -1395,19 +1309,20 @@
     document.getElementById('cfgPhone').value = profile.phone || '';
     document.getElementById('cfgAddress1').value = profile.addressLine1 || '';
     document.getElementById('cfgAddress2').value = profile.addressLine2 || '';
-    document.getElementById('cfgGstin').value = profile.gstin || '';
-    document.getElementById('cfgUpiVpa').value = profile.upiVpa || '';
-    document.getElementById('cfgSignerName').value = profile.signerName || '';
+    // GSTIN strictly set to "NaN" if not present
+    document.getElementById('cfgGstin').value = profile.gstin || 'NaN';
+    document.getElementById('cfgUpiVpa').value = profile.upiVpa || 'dangerousop@ybl';
+    document.getElementById('cfgSignerName').value = profile.signerName || 'VISHAL NURSERY';
     document.getElementById('cfgNextMemoNum').value = profile.nextMemoNumber || 1001;
     document.getElementById('cfgEnableTax').checked = Boolean(profile.enableTax);
     document.getElementById('cfgTaxRate').value = profile.defaultTaxPercentage || 0;
-    document.getElementById('cfgTerms').value = profile.termsNote || '';
+    // Terms & Notes strictly matching specification
+    document.getElementById('cfgTerms').value = profile.termsNote || 'Thanks For Visiting Vishal Nurshri !! Visit Again... Thanks';
 
-    const modal = document.getElementById('settingsModal');
-    if (modal) modal.classList.remove('hidden');
+    document.getElementById('settingsModal')?.classList.remove('hidden');
   }
 
-  function saveSettings() {
+  async function saveSettings() {
     const updated = {
       shopNameHindi: document.getElementById('cfgShopNameHindi').value.trim(),
       shopNameEnglish: document.getElementById('cfgShopNameEnglish').value.trim(),
@@ -1415,25 +1330,24 @@
       phone: document.getElementById('cfgPhone').value.trim(),
       addressLine1: document.getElementById('cfgAddress1').value.trim(),
       addressLine2: document.getElementById('cfgAddress2').value.trim(),
-      gstin: document.getElementById('cfgGstin').value.trim(),
+      gstin: document.getElementById('cfgGstin').value.trim() || 'NaN',
       upiVpa: document.getElementById('cfgUpiVpa').value.trim(),
       signerName: document.getElementById('cfgSignerName').value.trim(),
       nextMemoNumber: parseInt(document.getElementById('cfgNextMemoNum').value, 10) || 1001,
       enableTax: document.getElementById('cfgEnableTax').checked,
       defaultTaxPercentage: Number(document.getElementById('cfgTaxRate').value) || 0,
-      termsNote: document.getElementById('cfgTerms').value.trim()
+      termsNote: document.getElementById('cfgTerms').value.trim() || 'Thanks For Visiting Vishal Nurshri !! Visit Again... Thanks'
     };
 
-    window.CashmemoDB.saveBusinessProfile(updated);
+    await window.CashmemoDB.saveBusinessProfile(updated);
     closeAllModals();
     updateLiveCalculations();
-    showToast('Business details updated successfully!', 'success');
+    showToast('Settings saved to ./data/settings.json!', 'success');
   }
 
   // --- Backup & Restore ---
   function openBackupModal() {
-    const modal = document.getElementById('backupModal');
-    if (modal) modal.classList.remove('hidden');
+    document.getElementById('backupModal')?.classList.remove('hidden');
   }
 
   function downloadBackupJson() {
@@ -1452,8 +1366,8 @@
 
   function restoreBackupJson(file) {
     const reader = new FileReader();
-    reader.onload = function (e) {
-      const res = window.CashmemoDB.importFullBackup(e.target.result);
+    reader.onload = async function (e) {
+      const res = await window.CashmemoDB.importFullBackup(e.target.result);
       if (res.success) {
         showToast(`Restored: ${res.memosCount} Memos, ${res.customersCount} Customers, ${res.ratesCount} Rates!`, 'success');
         closeAllModals();
@@ -1469,7 +1383,6 @@
     document.querySelectorAll('.modal-backdrop, .drawer-backdrop').forEach(el => el.classList.add('hidden'));
   }
 
-  // --- Helper UI Utilities ---
   function escapeHtml(str) {
     if (!str) return '';
     return String(str)
@@ -1480,20 +1393,21 @@
       .replace(/'/g, '&#039;');
   }
 
-  // --- Initialization & Event Wiring ---
-  function init() {
+  // --- Application Initialization ---
+  async function init() {
+    // Connect to server-side persistent local storage
+    const status = await window.CashmemoDB.initDatabase();
+
     const profile = window.CashmemoDB.getBusinessProfile();
-    state.memoNumber = String(profile.nextMemoNumber);
+    state.memoNumber = String(profile.nextMemoNumber || 1001);
     state.taxPercentage = profile.enableTax ? profile.defaultTaxPercentage : 0;
 
-    // Initialize DOM with initial state
-    const elMemoNum = document.getElementById('editorMemoNumber');
-    if (elMemoNum) elMemoNum.value = state.memoNumber;
+    // Initialize DOM inputs
+    document.getElementById('editorMemoNumber').value = state.memoNumber;
+    document.getElementById('editorDate').value = state.date;
+    document.getElementById('editorDueNote').value = 'Carry Forward';
 
-    const elDate = document.getElementById('editorDate');
-    if (elDate) elDate.value = state.date;
-
-    // Header Quick Buttons
+    // Top Navigation Listeners
     document.getElementById('btnNewMemo')?.addEventListener('click', createNewMemo);
     document.getElementById('btnSaveMemo')?.addEventListener('click', () => saveCurrentMemo(false));
     document.getElementById('btnPrintMemo')?.addEventListener('click', () => saveCurrentMemo(true));
@@ -1506,7 +1420,7 @@
       document.getElementById('shortcutsModal')?.classList.remove('hidden');
     });
 
-    // Theme Selector (Traditional Maroon Slip vs Modern GST Invoice)
+    // Theme Switchers
     document.getElementById('themeSelectTraditional')?.addEventListener('click', function () {
       state.previewTheme = 'traditional';
       this.classList.add('bg-red-900', 'text-white');
@@ -1525,21 +1439,21 @@
       updateLiveCalculations();
     });
 
-    // Retail vs Wholesale Mode toggle
+    // Retail vs Wholesale Mode
     document.getElementById('rateModeToggle')?.addEventListener('change', function () {
       state.isWholesaleMode = this.checked;
       showToast(`Pricing mode: ${state.isWholesaleMode ? 'Wholesale (थोक मूल्य)' : 'Retail (खुदरा मूल्य)'}`, 'info');
       updateLiveCalculations();
     });
 
-    // Add Row button
+    // Add Row Button
     document.getElementById('btnAddRow')?.addEventListener('click', function () {
-      state.items.push(createItem(state.items.length + 1, '', 1, 0, 0, 'amount', 0, ''));
+      state.items.push(createItem(state.items.length + 1, '', 1, 0));
       renderEditorItems();
       updateLiveCalculations();
     });
 
-    // Editor Header Inputs
+    // Inputs Binding
     document.getElementById('editorMemoNumber')?.addEventListener('input', function () {
       state.memoNumber = this.value;
       updateLiveCalculations();
@@ -1596,38 +1510,36 @@
       updateLiveCalculations();
     });
 
-    // Modal Close Buttons
-    document.querySelectorAll('.btn-close-modal').forEach(b => {
-      b.addEventListener('click', closeAllModals);
-    });
+    // Close buttons
+    document.querySelectorAll('.btn-close-modal').forEach(b => b.addEventListener('click', closeAllModals));
 
-    // History Search & Filter
+    // History filter/search
     document.getElementById('historySearchInput')?.addEventListener('input', renderHistoryList);
     document.getElementById('historyFilterSelect')?.addEventListener('change', renderHistoryList);
 
-    // Customer Modal events
+    // Customer search & add
     document.getElementById('customerSearchInput')?.addEventListener('input', renderCustomerList);
-    document.getElementById('btnAddNewCustomerModal')?.addEventListener('click', function () {
-      const name = prompt('Enter customer name:');
+    document.getElementById('btnAddNewCustomerModal')?.addEventListener('click', async function () {
+      const name = prompt('Customer Name:');
       if (!name) return;
-      const phone = prompt('Enter mobile number:') || '';
-      const address = prompt('Enter address:') || '';
-      window.CashmemoDB.saveCustomer({ name, phoneNumber: phone, address });
+      const phone = prompt('Mobile Number:') || '';
+      const address = prompt('Address:') || '';
+      await window.CashmemoDB.saveCustomer({ name, phoneNumber: phone, address });
       renderCustomerList();
       showToast(`Added customer ${name}`, 'success');
     });
 
-    // Rates Modal events
+    // Rate search & add
     document.getElementById('ratesSearchInput')?.addEventListener('input', renderRatesList);
-    document.getElementById('btnAddNewRateModal')?.addEventListener('click', function () {
+    document.getElementById('btnAddNewRateModal')?.addEventListener('click', async function () {
       const name = prompt('Plant / Item Name:');
       if (!name) return;
       const retail = Number(prompt('Retail Price (₹):') || 0);
       const wholesale = Number(prompt('Wholesale Price (₹):') || 0);
       const category = prompt('Category (e.g. फूल, फलदार पौधे, गमला):') || 'Plants';
-      window.CashmemoDB.saveRate({ name, retailPrice: retail, wholesalePrice: wholesale, category });
+      await window.CashmemoDB.saveRate({ name, retailPrice: retail, wholesalePrice: wholesale, category });
       renderRatesList();
-      showToast(`Added ${name} to rate catalog!`, 'success');
+      showToast(`Added ${name} to plant catalog!`, 'success');
     });
 
     // Settings save
@@ -1635,38 +1547,35 @@
 
     // Backup & Restore
     document.getElementById('btnDownloadBackup')?.addEventListener('click', downloadBackupJson);
-    document.getElementById('backupFileInput')?.addEventListener('change', function (e) {
-      if (this.files && this.files[0]) {
-        restoreBackupJson(this.files[0]);
-      }
+    document.getElementById('backupFileInput')?.addEventListener('change', function () {
+      if (this.files && this.files[0]) restoreBackupJson(this.files[0]);
     });
 
-    // Settle Modal Action
-    document.getElementById('btnConfirmSettle')?.addEventListener('click', function () {
+    // Settle due action
+    document.getElementById('btnConfirmSettle')?.addEventListener('click', async function () {
       const modal = document.getElementById('paymentSettleModal');
       const custId = modal.dataset.customerId;
       const amt = Number(document.getElementById('settleAmountInput').value) || 0;
       const method = document.getElementById('settlePaymentMethod').value;
       const note = document.getElementById('settleNoteInput').value;
 
-      window.CashmemoDB.recordCustomerPayment(custId, amt, method, note);
+      await window.CashmemoDB.recordCustomerPayment(custId, amt, method, note);
       modal.classList.add('hidden');
       renderCustomerList();
       updateLiveCalculations();
-      showToast(`Payment of ₹${amt} recorded successfully!`, 'success');
+      showToast(`Recorded payment of ₹${amt}`, 'success');
     });
 
-    // Initialize Autocomplete and Keybindings
+    // Initialize Autocomplete, Items, and Hotkeys
     initCustomerAutocomplete();
     renderEditorItems();
     updateLiveCalculations();
 
-    // Setup global keyboard shortcuts
     window.KeyboardShortcuts.init({
       onSaveAndPrint: () => saveCurrentMemo(true),
       onSaveOnly: () => saveCurrentMemo(false),
       onNewRow: () => {
-        state.items.push(createItem(state.items.length + 1, '', 1, 0, 0, 'amount', 0, ''));
+        state.items.push(createItem(state.items.length + 1, '', 1, 0));
         renderEditorItems();
         updateLiveCalculations();
         showToast('Inserted new item row (Alt+N)', 'info');
@@ -1678,7 +1587,6 @@
     });
   }
 
-  // Bootstrap when DOM is ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {

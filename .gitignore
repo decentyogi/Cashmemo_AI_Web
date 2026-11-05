@@ -1,3 +1,9 @@
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
 # Operating System files
 .DS_Store
 Thumbs.db
@@ -23,8 +29,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Node modules & build artifacts (if extended)
-node_modules/
+# Build outputs
 dist/
 build/
 .cache/
