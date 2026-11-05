@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cashmemo Web - Vishal Nursery (विशाल नर्सरी)</title>
+  <!-- Tailwind CSS via CDN with offline fallback styling in styles.css -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="bg-[#F8F5F0] text-gray-900 font-sans antialiased min-h-screen flex flex-col">
+
+  <!-- ================= TOP NAVIGATION BAR ================= -->
+  <header id="appNavbar" class="no-print bg-[#8B1527] text-white shadow-md sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Logo & Title -->
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center text-xl shadow-inner">
+          🌺
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-lg font-black tracking-wide leading-tight">विशाल नर्सरी</h1>
+            <span class="text-xs bg-white/20 font-semibold px-2 py-0.5 rounded text-white/90">Cashmemo Web</span>
+          </div>
+          <div class="text-[11px] text-white/80 font-medium">Standalone Offline-First Billing & Ledger System</div>
+        </div>
+      </div>
+
+      <!-- Quick Action Buttons -->
+      <div class="flex items-center space-x-2">
+        <button id="btnNewMemo" class="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-md text-xs font-bold transition-all shadow-sm" title="Create New Bill">
+          <span>+</span>
+          <span>New Bill</span>
+        </button>
+
+        <button id="btnSaveMemo" class="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-bold transition-all shadow-sm" title="Save Bill (Alt + S)">
+          <span>💾</span>
+          <span>Save (Alt+S)</span>
+        </button>
+
+        <button id="btnPrintMemo" class="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-md text-xs font-black transition-all shadow-md" title="Save & Print (Ctrl + Enter)">
+          <span>🖨️</span>
+          <span>Print / PDF (Ctrl+↵)</span>
+        </button>
+
+        <div class="h-6 w-px bg-white/20 mx-1"></div>
+
+        <button id="btnOpenHistory" class="p-2 bg-white/10 hover:bg-white/20 rounded-md text-white text-xs font-medium transition-colors" title="Bill History (Alt + H)">
+          <span>📜 History</span>
+        </button>
+
+        <button id="btnOpenCustomers" class="p-2 bg-white/10 hover:bg-white/20 rounded-md text-white text-xs font-medium transition-colors" title="Customer Directory (Alt + C)">
+          <span>👥 Customers</span>
+        </button>
+
+        <button id="btnOpenRates" class="p-2 bg-white/10 hover:bg-white/20 rounded-md text-white text-xs font-medium transition-colors" title="Plant Rate Catalog (Alt + R)">
+          <span>🌱 Plant Rates</span>
+        </button>
+
+        <button id="btnOpenSettings" class="p-2 bg-white/10 hover:bg-white/20 rounded-md text-white text-xs font-medium transition-colors" title="Business Settings">
+          <span>⚙️ Settings</span>
+        </button>
+
+        <button id="btnOpenBackup" class="p-2 bg-white/10 hover:bg-white/20 rounded-md text-white text-xs font-medium transition-colors" title="JSON Backup & Restore">
+          <span>🔄 Backup</span>
+        </button>
+
+        <button id="btnOpenShortcuts" class="p-2 bg-white/10 hover:bg-white/20 rounded-md text-white text-xs font-medium transition-colors" title="Keyboard Shortcuts">
+          <span>⌨️</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ================= MAIN TWO-COLUMN WORKSPACE ================= -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- ================= LEFT COLUMN: INVOICE EDITOR ================= -->
+    <section id="editorSection" class="no-print lg:col-span-7 space-y-4">
+
+      <!-- 1. Invoice Meta Card -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div class="flex items-center justify-between border-b border-gray-100 pb-3 mb-3">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-[#8B1527]"></span>
+            <h2 class="text-xs font-black uppercase tracking-wider text-gray-700">Invoice Details</h2>
+          </div>
+          <!-- Pricing Mode Switch -->
+          <div class="flex items-center space-x-2">
+            <span class="text-xs text-gray-500 font-medium">Retail</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="rateModeToggle" class="sr-only peer">
+              <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#8B1527]"></div>
+            </label>
+            <span class="text-xs font-bold text-gray-700">Wholesale</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-[11px] font-bold text-gray-600 mb-1">Invoice / Memo #</label>
+            <input type="text" id="editorMemoNumber" class="w-full text-xs font-mono font-bold border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#8B1527] focus:border-[#8B1527]" value="1001" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-gray-600 mb-1">Invoice Date</label>
+            <input type="text" id="editorDate" class="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#8B1527]" placeholder="DD/MM/YYYY" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-gray-600 mb-1">Due Date (Optional)</label>
+            <input type="date" id="editorDueDate" class="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#8B1527]" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Customer Profile Card with Live Autocomplete -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 relative">
+        <div class="flex items-center justify-between border-b border-gray-100 pb-2 mb-3">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+            <h2 class="text-xs font-black uppercase tracking-wider text-gray-700">Customer Details</h2>
+          </div>
+          <span class="text-[11px] text-gray-400 font-medium">Type name to auto-fill</span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <!-- Customer Name with Autocomplete dropdown -->
+          <div class="relative">
+            <label class="block text-[11px] font-bold text-gray-600 mb-1">Customer Name (ग्राहक का नाम)</label>
+            <input type="text" id="editorCustomerName" autocomplete="off" class="w-full text-xs font-semibold border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#8B1527]" placeholder="e.g. राजेश कुमार सिंह" />
+            <div id="customerSuggestions" class="absolute left-0 right-0 top-full bg-white shadow-xl border border-gray-200 rounded-lg mt-1 z-30 hidden max-h-56 overflow-y-auto"></div>
+          </div>
+
+          <!-- Mobile Number -->
+          <div>
+            <label class="block text-[11px] font-bold text-gray-600 mb-1">Mobile Number (मोबाइल)</label>
+            <input type="text" id="editorCustomerMobile" class="w-full text-xs font-mono border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#8B1527]" placeholder="7631873743" />
+          </div>
+        </div>
+
+        <!-- Address -->
+        <div>
+          <label class="block text-[11px] font-bold text-gray-600 mb-1">Customer Address (ग्राहक का पता)</label>
+          <input type="text" id="editorCustomerAddress" class="w-full text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#8B1527]" placeholder="ग्राम-कोटा, तकिया, सासाराम" />
+        </div>
+      </div>
+
+      <!-- 3. Dynamic Line Items Table Card -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div class="flex items-center justify-between border-b border-gray-100 pb-2 mb-3">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+            <h2 class="text-xs font-black uppercase tracking-wider text-gray-700">Billing Items (सामग्री विवरण)</h2>
+          </div>
+          <span class="text-[11px] text-gray-400">Alt+N to add row</span>
+        </div>
+
+        <!-- Line items table -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="bg-gray-50 text-gray-600 font-bold border-b border-gray-200">
+                <th class="p-2 w-8 text-center">#</th>
+                <th class="p-2">Item Description / Plant</th>
+                <th class="p-2 w-16 text-center">HSN</th>
+                <th class="p-2 w-24 text-center">Qty</th>
+                <th class="p-2 w-20 text-right">Price (₹)</th>
+                <th class="p-2 w-24 text-right">Disc</th>
+                <th class="p-2 w-24 text-right">Amount (₹)</th>
+                <th class="p-2 w-16 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="itemsTableBody">
+              <!-- Dynamically rendered rows by app.js -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Add Row Button & Quick Rate Picker -->
+        <div class="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
+          <button type="button" id="btnAddRow" class="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md text-xs font-bold transition-colors">
+            <span>+</span>
+            <span>Add Item Row (Alt+N)</span>
+          </button>
+
+          <span class="text-[11px] text-gray-400 italic">Quick auto-lookup active on typing</span>
+        </div>
+      </div>
+
+      <!-- 4. Billing Summaries & Settlement Card -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div class="flex items-center justify-between border-b border-gray-100 pb-2 mb-3">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+            <h2 class="text-xs font-black uppercase tracking-wider text-gray-700">Calculations & Payment Settlement</h2>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Adjustments: Discount & Tax & Dues -->
+          <div class="space-y-3 bg-gray-50/70 p-3 rounded-lg border border-gray-200/60">
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-bold text-gray-600 mb-1">Invoice Discount</label>
+                <div class="flex space-x-1">
+                  <input type="number" id="editorDiscount" min="0" step="any" class="w-full text-xs border border-gray-300 rounded px-2 py-1 text-right focus:outline-none" value="0" />
+                  <select id="editorDiscountType" class="text-xs border border-gray-300 rounded px-1 bg-white">
+                    <option value="amount">₹</option>
+                    <option value="%">%</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-gray-600 mb-1">Tax Rate (GST %)</label>
+                <input type="number" id="editorTax" min="0" step="any" class="w-full text-xs border border-gray-300 rounded px-2 py-1 text-right focus:outline-none" value="0" placeholder="0" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-bold text-gray-600 mb-1">Previous Outstanding Dues (पिछला बकाया)</label>
+              <input type="number" id="editorPreviousDues" min="0" step="any" class="w-full text-xs font-mono font-bold text-red-800 border border-gray-300 rounded px-2 py-1 text-right focus:outline-none" value="0" />
+            </div>
+
+            <!-- Payment Options -->
+            <div class="grid grid-cols-2 gap-2 pt-1 border-t border-gray-200">
+              <div>
+                <label class="block text-[11px] font-bold text-gray-600 mb-1">Payment Method</label>
+                <select id="editorPaymentMethod" class="w-full text-xs border border-gray-300 rounded px-2 py-1 bg-white font-medium">
+                  <option value="Cash">Cash (नगद)</option>
+                  <option value="UPI">UPI / Online</option>
+                  <option value="Card">Debit / Credit Card</option>
+                  <option value="Bank Transfer">Bank Transfer (NEFT/IMPS)</option>
+                  <option value="Cheque">Cheque</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-gray-600 mb-1">Amount Paid (जमा राशि)</label>
+                <input type="number" id="editorPaidAmount" min="0" step="any" class="w-full text-xs font-mono font-bold text-emerald-800 border border-gray-300 rounded px-2 py-1 text-right focus:outline-none" value="0" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-bold text-gray-600 mb-1">Balance Due Promise / Note</label>
+              <input type="text" id="editorDueNote" class="w-full text-xs border border-gray-300 rounded px-2 py-1" value="Next Day (कल देगा)" placeholder="e.g. Next Monday, Will pay in cash" />
+            </div>
+          </div>
+
+          <!-- Summary Breakdown Display -->
+          <div class="flex flex-col justify-between bg-white p-3 rounded-lg border border-gray-200 space-y-2 text-xs">
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-gray-600">
+                <span>Subtotal (सकल योग):</span>
+                <span id="calcSubtotal" class="font-mono font-semibold">₹ 0.00</span>
+              </div>
+              <div class="flex justify-between text-gray-600">
+                <span>GST Tax:</span>
+                <span id="calcTaxAmount" class="font-mono font-semibold">+ ₹ 0.00</span>
+              </div>
+              <div class="flex justify-between text-gray-700 font-bold border-t border-gray-100 pt-1">
+                <span>Grand Total (बिल योग):</span>
+                <span id="calcGrandTotal" class="font-mono text-gray-900">₹ 0.00</span>
+              </div>
+              <div class="flex justify-between text-sm font-black text-red-900 border-t border-b border-gray-200 py-1.5">
+                <span>Total Payable (कुल देय):</span>
+                <span id="calcTotalPayable" class="font-mono">₹ 0.00</span>
+              </div>
+              <div id="calcBalanceDueContainer" class="flex justify-between text-gray-600 pt-0.5">
+                <span>Remaining Balance Due:</span>
+                <span id="calcBalanceDue" class="font-mono font-bold">₹ 0.00</span>
+              </div>
+            </div>
+
+            <!-- Amount in Words -->
+            <div class="bg-gray-50 p-2 rounded border border-gray-100 text-[11px]">
+              <span class="font-bold text-gray-600">Amount in Words:</span>
+              <div id="calcAmountInWords" class="italic text-gray-800 font-medium leading-tight mt-0.5">Zero Rupees Only</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ================= RIGHT COLUMN: REAL-TIME PAPER SLIP PREVIEW ================= -->
+    <section class="lg:col-span-5 flex flex-col space-y-3">
+
+      <!-- Preview Header Controls (Non-printed) -->
+      <div id="previewControls" class="no-print bg-white rounded-xl shadow-sm border border-gray-200 p-3 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <span class="text-xs font-bold text-gray-700">Preview:</span>
+          <!-- Theme Switcher -->
+          <div class="inline-flex rounded-md shadow-sm" role="group">
+            <button type="button" id="themeSelectTraditional" class="px-2.5 py-1 text-xs font-bold rounded-l-md bg-[#8B1527] text-white transition-colors">
+              Authentic Slip
+            </button>
+            <button type="button" id="themeSelectModern" class="px-2.5 py-1 text-xs font-semibold rounded-r-md bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
+              Modern GST
+            </button>
+          </div>
+        </div>
+
+        <button onclick="window.print()" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black text-xs rounded-md shadow-sm transition-all flex items-center space-x-1">
+          <span>🖨️</span>
+          <span>Print / Save as PDF</span>
+        </button>
+      </div>
+
+      <!-- Scrollable Container for Preview -->
+      <div class="flex-1 overflow-y-auto max-h-[800px] rounded-xl">
+        <!-- Exact Printable Area -->
+        <div id="billPrintArea" class="w-full">
+          <div id="slipPreviewContainer">
+            <!-- Rendered dynamically by app.js (Traditional Slip or Modern GST Invoice) -->
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ================= MODALS & DRAWERS ================= -->
+
+  <!-- 1. HISTORY DRAWER -->
+  <div id="historyDrawer" class="drawer-backdrop fixed inset-0 z-50 flex justify-end hidden">
+    <div class="w-full max-w-md bg-white h-full shadow-2xl flex flex-col drawer-panel">
+      <!-- Drawer Header -->
+      <div class="p-4 bg-[#8B1527] text-white flex justify-between items-center">
+        <div>
+          <h2 class="text-base font-black">Past Cash Memos</h2>
+          <div class="text-xs text-white/80">Search & filter previous bills</div>
+        </div>
+        <button class="btn-close-modal p-1.5 hover:bg-white/20 rounded-md text-white">✕</button>
+      </div>
+
+      <!-- KPI Metrics Strip -->
+      <div class="grid grid-cols-3 gap-2 p-3 bg-gray-50 border-b border-gray-200 text-center">
+        <div class="bg-white p-2 rounded border border-gray-200">
+          <div class="text-[10px] text-gray-500 font-bold uppercase">Total Sales</div>
+          <div id="historyKpiTotalSales" class="font-mono text-xs font-bold text-gray-900">₹ 0</div>
+        </div>
+        <div class="bg-white p-2 rounded border border-gray-200">
+          <div class="text-[10px] text-gray-500 font-bold uppercase">Collected</div>
+          <div id="historyKpiCollected" class="font-mono text-xs font-bold text-emerald-700">₹ 0</div>
+        </div>
+        <div class="bg-white p-2 rounded border border-gray-200">
+          <div class="text-[10px] text-gray-500 font-bold uppercase">Outstanding</div>
+          <div id="historyKpiPendingDues" class="font-mono text-xs font-bold text-red-700">₹ 0</div>
+        </div>
+      </div>
+
+      <!-- Search & Filters -->
+      <div class="p-3 border-b border-gray-200 space-y-2">
+        <input type="text" id="historySearchInput" class="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#8B1527]" placeholder="Search by Memo #, Name, Mobile, Date..." />
+        <div class="flex justify-between items-center text-xs">
+          <span class="text-gray-500 font-medium">Filter:</span>
+          <select id="historyFilterSelect" class="border border-gray-300 rounded px-2 py-1 text-xs font-medium">
+            <option value="ALL">All Memos</option>
+            <option value="PENDING_DUE">Pending Dues Only</option>
+            <option value="PAID">Fully Paid Only</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- List Container -->
+      <div id="historyListContainer" class="flex-1 overflow-y-auto p-3 space-y-2.5">
+        <!-- Rendered by app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. CUSTOMER DIRECTORY MODAL -->
+  <div id="customerModal" class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+      <div class="p-4 bg-[#8B1527] text-white flex justify-between items-center">
+        <div>
+          <h2 class="text-base font-black">Customer Directory & Balances</h2>
+          <div class="text-xs text-white/80">Manage customer ledger & outstanding payments</div>
+        </div>
+        <button class="btn-close-modal p-1.5 hover:bg-white/20 rounded-md text-white">✕</button>
+      </div>
+
+      <div class="p-4 border-b border-gray-200 flex justify-between items-center space-x-3">
+        <input type="text" id="customerSearchInput" class="flex-1 text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#8B1527]" placeholder="Search customer by name, mobile, address..." />
+        <button id="btnAddNewCustomerModal" class="px-3 py-2 bg-[#8B1527] hover:bg-[#A8263B] text-white font-bold rounded-lg text-xs whitespace-nowrap">
+          + Add Customer
+        </button>
+      </div>
+
+      <div id="customerListContainer" class="flex-1 overflow-y-auto p-4 space-y-2">
+        <!-- Rendered by app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. PLANT RATE CATALOG MODAL -->
+  <div id="ratesModal" class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+      <div class="p-4 bg-[#8B1527] text-white flex justify-between items-center">
+        <div>
+          <h2 class="text-base font-black">Plant & Product Rate Catalog</h2>
+          <div class="text-xs text-white/80">Search & quick-add plants with Retail and Wholesale pricing</div>
+        </div>
+        <button class="btn-close-modal p-1.5 hover:bg-white/20 rounded-md text-white">✕</button>
+      </div>
+
+      <div class="p-4 border-b border-gray-200 flex justify-between items-center space-x-3">
+        <input type="text" id="ratesSearchInput" class="flex-1 text-xs border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#8B1527]" placeholder="Search plants, flowers, pots, fertilizers..." />
+        <button id="btnAddNewRateModal" class="px-3 py-2 bg-[#8B1527] hover:bg-[#A8263B] text-white font-bold rounded-lg text-xs whitespace-nowrap">
+          + New Plant
+        </button>
+      </div>
+
+      <div id="ratesListContainer" class="flex-1 overflow-y-auto p-4 space-y-2">
+        <!-- Rendered by app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. BUSINESS SETTINGS MODAL -->
+  <div id="settingsModal" class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-2xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+      <div class="p-4 bg-[#8B1527] text-white flex justify-between items-center">
+        <h2 class="text-base font-black">Business Header & Preferences</h2>
+        <button class="btn-close-modal p-1.5 hover:bg-white/20 rounded-md text-white">✕</button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">Shop Name (Hindi / Main)</label>
+            <input type="text" id="cfgShopNameHindi" class="w-full border border-gray-300 rounded px-2.5 py-1.5 font-bold" />
+          </div>
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">Shop Name (English)</label>
+            <input type="text" id="cfgShopNameEnglish" class="w-full border border-gray-300 rounded px-2.5 py-1.5" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 mb-1">Tagline / Specialization Note</label>
+          <textarea id="cfgTagline" rows="2" class="w-full border border-gray-300 rounded px-2.5 py-1.5"></textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">Mobile / Phone</label>
+            <input type="text" id="cfgPhone" class="w-full border border-gray-300 rounded px-2.5 py-1.5" />
+          </div>
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">GSTIN / Tax ID</label>
+            <input type="text" id="cfgGstin" class="w-full border border-gray-300 rounded px-2.5 py-1.5 font-mono" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 mb-1">Address Line 1</label>
+          <input type="text" id="cfgAddress1" class="w-full border border-gray-300 rounded px-2.5 py-1.5" />
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 mb-1">Address Line 2</label>
+          <input type="text" id="cfgAddress2" class="w-full border border-gray-300 rounded px-2.5 py-1.5" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">UPI ID (For Live QR Code)</label>
+            <input type="text" id="cfgUpiVpa" class="w-full border border-gray-300 rounded px-2.5 py-1.5 font-mono" placeholder="dangerousop@ybl" />
+          </div>
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">Signer / Nursery Name</label>
+            <input type="text" id="cfgSignerName" class="w-full border border-gray-300 rounded px-2.5 py-1.5" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3 border-t border-gray-200 pt-3">
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">Next Memo #</label>
+            <input type="number" id="cfgNextMemoNum" class="w-full border border-gray-300 rounded px-2.5 py-1.5 font-mono font-bold" />
+          </div>
+          <div class="flex items-center space-x-2 pt-4">
+            <input type="checkbox" id="cfgEnableTax" class="rounded text-[#8B1527]" />
+            <label for="cfgEnableTax" class="font-bold text-gray-700">Enable Tax</label>
+          </div>
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">Default Tax %</label>
+            <input type="number" id="cfgTaxRate" class="w-full border border-gray-300 rounded px-2.5 py-1.5" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 mb-1">Terms Note</label>
+          <input type="text" id="cfgTerms" class="w-full border border-gray-300 rounded px-2.5 py-1.5" />
+        </div>
+      </div>
+
+      <div class="p-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-2">
+        <button class="btn-close-modal px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold">Cancel</button>
+        <button id="btnSaveSettings" class="px-5 py-2 bg-[#8B1527] hover:bg-[#A8263B] text-white rounded-lg text-xs font-bold">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. BACKUP & RESTORE MODAL -->
+  <div id="backupModal" class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+      <div class="p-4 bg-[#8B1527] text-white flex justify-between items-center">
+        <h2 class="text-base font-black">JSON Backup & Restore</h2>
+        <button class="btn-close-modal p-1.5 hover:bg-white/20 rounded-md text-white">✕</button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs">
+        <div class="p-3 bg-red-50 border border-red-200 rounded-lg">
+          <div class="font-bold text-red-900 mb-1">Export Full Backup</div>
+          <p class="text-gray-600 mb-3">Download a portable .json file containing all your cash memos, customer ledgers, business profiles, and plant catalog.</p>
+          <button id="btnDownloadBackup" class="w-full py-2 bg-[#8B1527] hover:bg-[#A8263B] text-white font-bold rounded-lg shadow-sm">
+            ⬇️ Download Backup JSON
+          </button>
+        </div>
+
+        <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+          <div class="font-bold text-gray-800 mb-1">Restore from Backup</div>
+          <p class="text-gray-600 mb-3">Upload a previously saved .json backup file to restore your entire database offline.</p>
+          <input type="file" id="backupFileInput" accept=".json" class="w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-gray-700 file:text-white hover:file:bg-gray-800 cursor-pointer" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. PAYMENT SETTLEMENT MODAL -->
+  <div id="paymentSettleModal" class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden">
+      <div class="p-4 bg-[#8B1527] text-white flex justify-between items-center">
+        <h2 class="text-base font-black">Customer Payment Settlement</h2>
+        <button class="btn-close-modal p-1.5 hover:bg-white/20 rounded-md text-white">✕</button>
+      </div>
+
+      <div class="p-5 space-y-3 text-xs">
+        <div>
+          <span class="text-gray-500">Customer:</span>
+          <div id="settleCustName" class="font-bold text-sm text-gray-900 mt-0.5"></div>
+        </div>
+
+        <div class="flex justify-between items-center p-2.5 bg-red-50 rounded border border-red-200">
+          <span class="font-bold text-red-900">Total Outstanding Due:</span>
+          <span id="settleDueAmount" class="font-mono font-black text-sm text-red-900">₹ 0.00</span>
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 mb-1">Amount Received Now (₹)</label>
+          <input type="number" id="settleAmountInput" step="any" min="1" class="w-full border border-gray-300 rounded px-3 py-2 font-mono font-bold text-base text-emerald-800 focus:outline-none" />
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 mb-1">Payment Method</label>
+          <select id="settlePaymentMethod" class="w-full border border-gray-300 rounded px-2.5 py-1.5">
+            <option value="Cash">Cash (नगद)</option>
+            <option value="UPI">UPI (Google Pay / PhonePe)</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 mb-1">Note (if balance remains)</label>
+          <input type="text" id="settleNoteInput" class="w-full border border-gray-300 rounded px-2.5 py-1.5" value="Next Day (कल देगा)" />
+        </div>
+
+        <button id="btnConfirmSettle" class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg shadow-sm mt-2">
+          ✓ Record Payment
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. KEYBOARD SHORTCUTS HELP MODAL -->
+  <div id="shortcutsModal" class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+      <div class="p-4 bg-[#8B1527] text-white flex justify-between items-center">
+        <h2 class="text-base font-black">⌨️ Keyboard Shortcuts</h2>
+        <button class="btn-close-modal p-1.5 hover:bg-white/20 rounded-md text-white">✕</button>
+      </div>
+
+      <div class="p-5 space-y-3 text-xs">
+        <div class="flex justify-between items-center py-1.5 border-b border-gray-100">
+          <span class="text-gray-700 font-medium">Save & Open Print Dialog</span>
+          <kbd class="px-2 py-1 bg-gray-100 border border-gray-300 rounded font-mono font-bold text-gray-800">Ctrl + Enter</kbd>
+        </div>
+        <div class="flex justify-between items-center py-1.5 border-b border-gray-100">
+          <span class="text-gray-700 font-medium">Insert New Billing Item Row</span>
+          <kbd class="px-2 py-1 bg-gray-100 border border-gray-300 rounded font-mono font-bold text-gray-800">Alt + N</kbd>
+        </div>
+        <div class="flex justify-between items-center py-1.5 border-b border-gray-100">
+          <span class="text-gray-700 font-medium">Save Memo (No Print)</span>
+          <kbd class="px-2 py-1 bg-gray-100 border border-gray-300 rounded font-mono font-bold text-gray-800">Alt + S</kbd>
+        </div>
+        <div class="flex justify-between items-center py-1.5 border-b border-gray-100">
+          <span class="text-gray-700 font-medium">Toggle Past Bills History Drawer</span>
+          <kbd class="px-2 py-1 bg-gray-100 border border-gray-300 rounded font-mono font-bold text-gray-800">Alt + H</kbd>
+        </div>
+        <div class="flex justify-between items-center py-1.5 border-b border-gray-100">
+          <span class="text-gray-700 font-medium">Open Plant Rate Catalog</span>
+          <kbd class="px-2 py-1 bg-gray-100 border border-gray-300 rounded font-mono font-bold text-gray-800">Alt + R</kbd>
+        </div>
+        <div class="flex justify-between items-center py-1.5 border-b border-gray-100">
+          <span class="text-gray-700 font-medium">Open Customer Directory</span>
+          <kbd class="px-2 py-1 bg-gray-100 border border-gray-300 rounded font-mono font-bold text-gray-800">Alt + C</kbd>
+        </div>
+        <div class="flex justify-between items-center py-1.5">
+          <span class="text-gray-700 font-medium">Close Any Open Modal / Drawer</span>
+          <kbd class="px-2 py-1 bg-gray-100 border border-gray-300 rounded font-mono font-bold text-gray-800">Escape</kbd>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer"></div>
+
+  <!-- Scripts -->
+  <script src="js/qrcode.min.js"></script>
+  <script src="js/numberToWords.js"></script>
+  <script src="js/sampleData.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/shortcuts.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
