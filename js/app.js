@@ -145,23 +145,26 @@
             <div class="item-suggestions absolute left-0 right-0 top-full bg-white shadow-xl border border-gray-200 rounded-b mt-0.5 z-20 hidden max-h-48 overflow-y-auto"></div>
           </div>
         </td>
-        <!-- Quantity Stepper -->
-        <td class="p-2">
-          <div class="flex items-center justify-center space-x-1">
-            <button type="button" class="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-bold btn-qty-dec" data-index="${index}">-</button>
-            <input type="number" step="any" min="0.1"
-              class="w-14 text-xs text-center border border-gray-300 rounded px-1 py-1 focus:outline-none focus:border-red-700 font-semibold"
-              data-index="${index}" data-field="quantity"
-              value="${item.quantity}" />
-            <button type="button" class="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-bold btn-qty-inc" data-index="${index}">+</button>
-          </div>
-        </td>
-        <!-- Rate / Unit Price -->
-        <td class="p-2">
+        <!-- Quantity Column (No Stepper Buttons) -->
+        <td class="p-2 w-20 text-center">
           <input type="number" step="any" min="0"
-            class="w-full text-xs text-right border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:border-red-700 font-semibold"
+            class="w-16 text-xs text-center border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:border-red-700 font-semibold"
+            data-index="${index}" data-field="quantity"
+            value="${item.quantity > 0 ? item.quantity : ''}"
+            placeholder="1"
+            onfocus="if(this.value==='0'||this.value==='0.00'||this.value==='1') this.value='';"
+            onblur="if(this.value==='') this.value='1';" />
+        </td>
+        <!-- Rate / Unit Price Column (Expanded min-width 90px) -->
+        <td class="p-2 w-28 min-w-[95px] text-right">
+          <input type="number" step="any" min="0"
+            class="w-full min-w-[90px] text-xs border border-gray-300 rounded focus:outline-none focus:border-red-700 font-semibold"
+            style="min-width: 90px; text-align: right; padding: 4px 8px;"
             data-index="${index}" data-field="rate"
-            value="${item.rate}" />
+            value="${item.rate > 0 ? item.rate : ''}"
+            placeholder="0"
+            onfocus="if(this.value==='0'||this.value==='0.00') this.value='';"
+            onblur="if(this.value==='') this.value='';" />
         </td>
         <!-- Row Total -->
         <td class="p-2 text-right font-bold text-xs text-gray-800 item-row-amount font-mono">
@@ -243,40 +246,12 @@
       });
     });
 
-    // Quantity & Rate inputs
+    // Quantity & Rate inputs (clean parse via parseFloat)
     document.querySelectorAll('#itemsTableBody input[data-field]').forEach(input => {
       input.addEventListener('input', function () {
         const idx = parseInt(this.dataset.index, 10);
         const field = this.dataset.field;
-        state.items[idx][field] = Number(this.value) || 0;
-        updateLiveCalculations();
-      });
-    });
-
-    // Qty Increment & Decrement
-    document.querySelectorAll('.btn-qty-inc').forEach(btn => {
-      btn.addEventListener('click', function () {
-        const idx = parseInt(this.dataset.index, 10);
-        state.items[idx].quantity = (Number(state.items[idx].quantity) || 1) + 1;
-        renderEditorItems();
-        updateLiveCalculations();
-      });
-    });
-
-    document.querySelectorAll('.btn-qty-dec').forEach(btn => {
-      btn.addEventListener('click', function () {
-        const idx = parseInt(this.dataset.index, 10);
-        const curr = Number(state.items[idx].quantity) || 1;
-        if (curr > 1) {
-          state.items[idx].quantity = curr - 1;
-        } else {
-          if (state.items.length > 1) {
-            state.items.splice(idx, 1);
-          } else {
-            state.items[0] = createItem(1, '', 1, 0);
-          }
-        }
-        renderEditorItems();
+        state.items[idx][field] = parseFloat(this.value) || 0;
         updateLiveCalculations();
       });
     });
@@ -334,7 +309,7 @@
 
     const elPaidAmountInput = document.getElementById('editorPaidAmount');
     if (elPaidAmountInput && !state.hasCustomPayment) {
-      elPaidAmountInput.value = calc.totalPayable.toFixed(2);
+      elPaidAmountInput.value = calc.totalPayable > 0 ? calc.totalPayable.toFixed(2) : '';
     }
 
     const elBalanceDue = document.getElementById('calcBalanceDue');
@@ -595,7 +570,6 @@
             <span class="inline-block bg-red-100 text-red-900 text-xs font-bold px-3 py-1 rounded">TAX INVOICE</span>
             <div class="text-sm font-bold font-mono text-gray-800 mt-2">Invoice #: ${escapeHtml(state.memoNumber)}</div>
             <div class="text-xs text-gray-600">Date: ${escapeHtml(state.date)}</div>
-            ${state.dueDate ? `<div class="text-xs text-red-700 font-medium">Due Date: ${escapeHtml(state.dueDate)}</div>` : ''}
           </div>
         </div>
 
@@ -813,7 +787,7 @@
 
             const dues = Number(this.dataset.balance) || 0;
             const prevDuesInput = document.getElementById('editorPreviousDues');
-            if (prevDuesInput) prevDuesInput.value = dues;
+            if (prevDuesInput) prevDuesInput.value = dues > 0 ? dues : '';
             state.previousDues = dues;
 
             suggestionsBox.classList.add('hidden');
@@ -922,9 +896,10 @@
     document.getElementById('editorCustomerName').value = '';
     document.getElementById('editorCustomerMobile').value = '';
     document.getElementById('editorCustomerAddress').value = '';
-    document.getElementById('editorPreviousDues').value = 0;
-    document.getElementById('editorDiscount').value = 0;
-    document.getElementById('editorTax').value = state.taxPercentage;
+    document.getElementById('editorPreviousDues').value = '';
+    document.getElementById('editorDiscount').value = '';
+    document.getElementById('editorTax').value = state.taxPercentage > 0 ? state.taxPercentage : '';
+    document.getElementById('editorPaidAmount').value = '';
     document.getElementById('editorDueNote').value = 'Carry Forward';
 
     renderEditorItems();
@@ -960,10 +935,11 @@
     document.getElementById('editorCustomerName').value = state.customerName;
     document.getElementById('editorCustomerMobile').value = state.customerMobile;
     document.getElementById('editorCustomerAddress').value = state.customerAddress;
-    document.getElementById('editorPreviousDues').value = state.previousDues;
-    document.getElementById('editorDiscount').value = state.discount;
-    document.getElementById('editorTax').value = state.taxPercentage;
-    document.getElementById('editorDueNote').value = state.paymentStatusNote;
+    document.getElementById('editorPreviousDues').value = state.previousDues > 0 ? state.previousDues : '';
+    document.getElementById('editorDiscount').value = state.discount > 0 ? state.discount : '';
+    document.getElementById('editorTax').value = state.taxPercentage > 0 ? state.taxPercentage : '';
+    document.getElementById('editorPaidAmount').value = state.paidAmount > 0 ? state.paidAmount : '';
+    document.getElementById('editorDueNote').value = state.paymentStatusNote || 'Carry Forward';
 
     renderEditorItems();
     updateLiveCalculations();
@@ -1191,7 +1167,7 @@
         document.getElementById('editorCustomerName').value = state.customerName;
         document.getElementById('editorCustomerMobile').value = state.customerMobile;
         document.getElementById('editorCustomerAddress').value = state.customerAddress;
-        document.getElementById('editorPreviousDues').value = state.previousDues;
+        document.getElementById('editorPreviousDues').value = state.previousDues > 0 ? state.previousDues : '';
 
         updateLiveCalculations();
         closeAllModals();
@@ -1464,23 +1440,18 @@
       updateLiveCalculations();
     });
 
-    document.getElementById('editorDueDate')?.addEventListener('input', function () {
-      state.dueDate = this.value;
-      updateLiveCalculations();
-    });
-
     document.getElementById('editorCustomerAddress')?.addEventListener('input', function () {
       state.customerAddress = this.value;
       updateLiveCalculations();
     });
 
     document.getElementById('editorPreviousDues')?.addEventListener('input', function () {
-      state.previousDues = Number(this.value) || 0;
+      state.previousDues = parseFloat(this.value) || 0;
       updateLiveCalculations();
     });
 
     document.getElementById('editorDiscount')?.addEventListener('input', function () {
-      state.discount = Number(this.value) || 0;
+      state.discount = parseFloat(this.value) || 0;
       updateLiveCalculations();
     });
 
@@ -1490,13 +1461,13 @@
     });
 
     document.getElementById('editorTax')?.addEventListener('input', function () {
-      state.taxPercentage = Number(this.value) || 0;
+      state.taxPercentage = parseFloat(this.value) || 0;
       updateLiveCalculations();
     });
 
     document.getElementById('editorPaidAmount')?.addEventListener('input', function () {
       state.hasCustomPayment = true;
-      state.paidAmount = Number(this.value) || 0;
+      state.paidAmount = parseFloat(this.value) || 0;
       updateLiveCalculations();
     });
 
@@ -1555,7 +1526,7 @@
     document.getElementById('btnConfirmSettle')?.addEventListener('click', async function () {
       const modal = document.getElementById('paymentSettleModal');
       const custId = modal.dataset.customerId;
-      const amt = Number(document.getElementById('settleAmountInput').value) || 0;
+      const amt = parseFloat(document.getElementById('settleAmountInput').value) || 0;
       const method = document.getElementById('settlePaymentMethod').value;
       const note = document.getElementById('settleNoteInput').value;
 
