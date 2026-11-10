@@ -92,6 +92,7 @@ Cashmemo_Web/
 ├── css/
 │   └── styles.css       # Tailwind base, centered alignment & vector print CSS
 ├── js/
+│   ├── tailwind.js      # Offline Tailwind CSS engine (zero external CDN dependency)
 │   ├── app.js           # Reactive billing controller, auto-save & vector QR
 │   ├── db.js            # Dual-mode backend API & local storage layer
 │   ├── numberToWords.js # Indian numbering currency converter (Crore/Lakh/Rupees)
